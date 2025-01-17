@@ -21,6 +21,22 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 
 // verifyToken=============================================================
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      console.log(err);
+      return res.status(401).send({ message: "unauthorized access" });
+    }
+    req.user = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.3jtn0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -45,16 +61,18 @@ async function run() {
     //     await client.db("admin").command({ ping: 1 });
     //     console.log("Pinged your deployment. You successfully connected to MongoDB!");
     app.post("/jwt", async (req, res) => {
-        const email = req.body;
-        
-        const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
-                expiresIn: '365d'
-        } )
-        res.cookie('token', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-              }).send({success: true})
+      const email = req.body;
+
+      const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "365d",
+      });
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
     });
   } finally {
     // Ensures that the client will close when you finish/error
