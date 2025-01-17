@@ -20,6 +20,8 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
+// verifyToken=============================================================
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.3jtn0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -34,11 +36,26 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
+    const usersCollection = client.db("HostelHub").collection("users");
+    const mealsCollection = client.db("HostelHub").collection("meals");
+    const reviewsCollection = client.db("HostelHub").collection("reviews");
     // Connect the client to the server	(optional starting in v4.7)
     //     await client.connect();
     // Send a ping to confirm a successful connection
     //     await client.db("admin").command({ ping: 1 });
     //     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    app.post("/jwt", async (req, res) => {
+        const email = req.body;
+        
+        const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
+                expiresIn: '365d'
+        } )
+        res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+              }).send({success: true})
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
