@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion } = require("mongodb");
-const port = process.env.PORT || 6000;
+const port = process.env.PORT || 7000;
 const app = express();
 
 const jwt = require("jsonwebtoken");
@@ -55,6 +55,23 @@ async function run() {
     const usersCollection = client.db("HostelHub").collection("users");
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
+
+//     user related api===================================
+app.post('/api/users/:email', async(req,res) => {
+        const email = req.params.email;
+        const query = {email}
+        const user = req.body;
+        const isExist = await usersCollection.findOne(query);
+
+        if(isExist){
+                return res.send({message: 'User exists'})
+        }
+        const result = await usersCollection.insertOne({
+                ...user, 
+                badge: "Bronze"
+        })
+        res.send(result)
+})
     // Connect the client to the server	(optional starting in v4.7)
     //     await client.connect();
     // Send a ping to confirm a successful connection
@@ -74,6 +91,22 @@ async function run() {
         })
         .send({ success: true });
     });
+
+
+    app.get('/logout',async(req,res) => {
+        try {
+                res.clearCookie('token',{
+                        maxAge: 0,
+                        secure: process.env.NODE_ENV === 'production',
+                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
+                }).send({success: true})
+                
+        } catch (error) {
+                res.status(500).send(error)
+                
+                
+        }
+    })
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
