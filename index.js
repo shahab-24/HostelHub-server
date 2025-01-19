@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 7000;
 const app = express();
 
@@ -56,32 +56,44 @@ async function run() {
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
 
-//     user related api===================================
-app.post('/api/users/:email', async(req,res) => {
-        const email = req.params.email;
-        const query = {email}
-        const user = req.body;
-        const isExist = await usersCollection.findOne(query);
+    //     user related api===================================
+    app.post("/api/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+      const user = req.body;
+      const isExist = await usersCollection.findOne(query);
 
-        if(isExist){
-                return res.send({message: 'User exists'})
-        }
-        const result = await usersCollection.insertOne({
-                ...user, 
-                badge: "Bronze",
-                role: 'user',
-                
+      if (isExist) {
+        return res.send({ message: "User exists" });
+      }
+      const result = await usersCollection.insertOne({
+        ...user,
+        badge: "Bronze",
+        role: "user",
+      });
+      res.send(result);
+    });
 
-        })
+    // Meals related api=======================================
+    app.get("/api/meals", verifyToken, async (req, res) => {
+      // const meals = req.body;
+      const result = await mealsCollection.find().toArray();
+      res.send(result);
+    });
+
+//     get meal details
+    app.get('/api/meals/:id', verifyToken, async(req,res) => {
+        const id = req.params.id;
+        const query = {_id: new ObjectId(id)}
+        const result = await mealsCollection.findOne(query)
         res.send(result)
-})
-
-// Meals related api=======================================
-app.post('/api/meals', verifyToken, async (req, res) => {
-        const meals = req.body;
-        const result = await mealsCollection.insertOne(meals)
-        res.send(result)
-})
+    })
+    
+    app.post("/api/meals", verifyToken, async (req, res) => {
+      const meals = req.body;
+      const result = await mealsCollection.insertOne(meals);
+      res.send(result);
+    });
     // Connect the client to the server	(optional starting in v4.7)
     //     await client.connect();
     // Send a ping to confirm a successful connection
@@ -102,21 +114,19 @@ app.post('/api/meals', verifyToken, async (req, res) => {
         .send({ success: true });
     });
 
-
-    app.get('/logout',async(req,res) => {
-        try {
-                res.clearCookie('token',{
-                        maxAge: 0,
-                        secure: process.env.NODE_ENV === 'production',
-                        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict'
-                }).send({success: true})
-                
-        } catch (error) {
-                res.status(500).send(error)
-                
-                
-        }
-    })
+    app.get("/logout", async (req, res) => {
+      try {
+        res
+          .clearCookie("token", {
+            maxAge: 0,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          })
+          .send({ success: true });
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    });
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
