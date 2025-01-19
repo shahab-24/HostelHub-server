@@ -68,8 +68,18 @@ app.post('/api/users/:email', async(req,res) => {
         }
         const result = await usersCollection.insertOne({
                 ...user, 
-                badge: "Bronze"
+                badge: "Bronze",
+                role: 'user',
+                
+
         })
+        res.send(result)
+})
+
+// Meals related api=======================================
+app.post('/api/meals', verifyToken, async (req, res) => {
+        const meals = req.body;
+        const result = await mealsCollection.insertOne(meals)
         res.send(result)
 })
     // Connect the client to the server	(optional starting in v4.7)
