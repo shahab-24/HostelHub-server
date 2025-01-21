@@ -81,6 +81,37 @@ async function run() {
       res.send(result);
     });
 
+
+    app.get('/api/meals', async (req, res) => {
+        const { search, category, minPrice, maxPrice, page, limit } = req.query;
+      
+        // Base query
+        const query = {};
+      
+        // Search
+        if (search) query.title = { $regex: search, $options: 'i' };
+      
+        // Category filter
+        if (category) query.category = category;
+      
+        // Price range filter
+        if (minPrice || maxPrice) {
+          query.price = {};
+          if (minPrice) query.price.$gte = parseFloat(minPrice);
+          if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+        }
+      
+        // Pagination
+        const meals = await mealsCollection.find(query)
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit));
+      
+        res.json(meals);
+      });
+      
+      
+      
+
     //     get meal details
     app.get("/api/meals/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
@@ -167,6 +198,18 @@ app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
       
 
 //       reviews
+
+app.get("/api/reviews/:id", async (req, res) => {
+        const { id } = req.params;
+      
+        const reviews = await reviewsCollection
+          .find({ id })
+          .sort({ createdAt: -1 }) // Latest reviews first
+          .toArray();
+      
+        res.send(reviews);
+      });
+
 app.post('/api/reviews', verifyToken, async(req,res) => {
         const {mealId, comment, rating} = req.body;
         const {email} = req.user;
@@ -187,14 +230,118 @@ app.post('/api/reviews', verifyToken, async(req,res) => {
 })
 
 // display reviees=================
-app.get("/api/reviews/:mealId", async (req, res) => {
-        const { mealId } = req.params;
-        const reviews = await reviewsCollection
-          .find({ mealId: mealId })
-          .sort({ createdAt: -1 })
-          .toArray();
-        res.json(reviews);
+app.patch("/api/reviews/:id", verifyToken, async (req, res) => {
+        const { id } = req.params;
+        const { comment, rating } = req.body;
+        const { email } = req.user;
+      
+        const result = await reviewsCollection.updateOne(
+          { _id: new ObjectId(id), email }, // Only allow the owner to edit
+          { $set: { comment, rating, updatedAt: new Date() } }
+        );
+      
+        if (result.modifiedCount === 0) {
+          return res.status(404).send({ message: "Review not found or you are not authorized to edit it." });
+        }
+      
+        res.send({ message: "Review updated successfully." });
       });
+      
+
+
+//       get users ==============================
+app.get('/api/users/role/:email', verifyToken, async(req,res) => {
+        const email = req.params.email;
+
+        const result = await usersCollection.findOne()
+        res.send({role: result?.role})
+})
+
+
+
+// upcoming meals===============
+app.get("/api/upcoming-meals", async (req, res) => {
+        try {
+            const meals = await mealsCollection
+                .find({ status: "upcoming" })
+                .sort({ likes: -1 })
+                .toArray();
+            res.send(meals);
+        } catch (err) {
+            res.status(500).send({ message: err.message });
+        }
+    });
+
+
+    app.put("/api/meals/:id/publish", async (req, res) => {
+        try {
+            const { id } = req.params;
+    
+            const result = await mealsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { status: "published" } }
+            );
+    
+            res.send(result);
+        } catch (err) {
+            res.status(500).send({ message: err.message });
+        }
+    });
+
+
+    app.post("/api/upcoming-meals", async (req, res) => {
+        try {
+            const newMeal = {
+                title: req.body.title,
+                category: req.body.category,
+                image: req.body.image,
+                description: req.body.description,
+                likes: 0,
+                status: "upcoming",
+                publishDate: new Date(req.body.publishDate),
+            };
+    
+            const result = await mealsCollection.insertOne(newMeal);
+            res.status(201).send(result);
+        } catch (err) {
+            res.status(500).send({ message: err.message });
+        }
+    });
+    
+    
+    
+
+app.post("/api/meals/:id/like", async (req, res) => {
+        const { userId, userType } = req.body; // Assume user data is passed in request
+        const { id } = req.params;
+    
+        if (!["Silver", "Gold", "Platinum"].includes(userType)) {
+            return res.status(403).send({ message: "Only premium users can like meals." });
+        }
+    
+        try {
+            // Check if the user has already liked the meal
+            const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
+            if (!meal.likesBy) meal.likesBy = [];
+            if (meal.likesBy.includes(userId)) {
+                return res.status(400).send({ message: "You have already liked this meal." });
+            }
+    
+            // Increment likes and track the user
+            const result = await mealsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                {
+                    $inc: { likes: 1 },
+                    $push: { likesBy: userId }, // Track user likes
+                }
+            );
+    
+            res.send(result);
+        } catch (err) {
+            res.status(500).send({ message: err.message });
+        }
+    });
+    
 
 
     // Connect the client to the server	(optional starting in v4.7)
