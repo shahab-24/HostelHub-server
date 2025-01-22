@@ -115,6 +115,25 @@ async function run() {
       res.send(result);
     });
 
+//     all meals for admin table==============
+    app.get("/api/meals", verifyToken, async (req, res) => {
+      const { sortBy = "likes", order = "dsc"} = req.query;
+
+      try {
+        const sortField = sortBy === 'reviews' ? 'reviews_count' : 'likes';
+        const sortOrder = order === "asc" ? 1 : -1;
+
+        const result = await mealsCollection.find().sort({[sortField]: sortOrder}).toArray();
+        res.send(result);
+        
+      } catch (error) {
+        console.log(error)
+        res.status(500).send('Failed to fetch sorted Meals')
+        
+      }
+   
+    });
+
     // sort filter by title, price rang and category===========
     app.get("/api/meals", async (req, res) => {
       const { search, category, minPrice, maxPrice, page, limit } = req.query;
