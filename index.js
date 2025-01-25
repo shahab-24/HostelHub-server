@@ -109,59 +109,162 @@ async function run() {
     });
 
     // Meals related api=======================================
-    app.get("/api/meals", verifyToken, async (req, res) => {
-      // const meals = req.body;
-      const result = await mealsCollection.find().toArray();
-      res.send(result);
-    });
+//     app.get("/api/meals", verifyToken, async (req, res) => {
+//       // const meals = req.body;
+//       const result = await mealsCollection.find().toArray();
+//       res.send(result);
+//     });
+// app.get("/api/meals", verifyToken, async (req, res) => {
+//         const { search, category, minPrice, maxPrice, page = 1, limit = 10, sortBy = "likes", order = "desc" } = req.query;
+      
+//         const query = {};
+//         if (search) query.title = { $regex: search, $options: "i" }; // Search by title (case-insensitive)
+//         if (category) query.category = category; // Filter by category
+//         if (minPrice || maxPrice) {
+//           query.price = {};
+//           if (minPrice) query.price.$gte = parseFloat(minPrice);
+//           if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+//         }
+      
+//         const sortField = sortBy === "reviews" ? "reviews_count" : "likes";
+//         const sortOrder = order === "asc" ? 1 : -1;
+      
+//         try {
+//           const meals = await mealsCollection
+//             .find(query)
+//             .sort({ [sortField]: sortOrder })
+//             .skip((page - 1) * limit)
+//             .limit(parseInt(limit))
+//             .toArray();
+      
+//           res.send(meals);
+//         } catch (error) {
+//           console.error("Failed to fetch meals:", error);
+//           res.status(500).send({ message: "Failed to fetch meals." });
+//         }
+//       });
+// app.get("/api/meals", async (req, res) => {
+//         const { search, category, minPrice, maxPrice, page = 1, limit = 10 } = req.query;
+      
+//         const query = {};
+//         if (search) query.title = { $regex: search, $options: "i" };
+//         if (category) query.category = category;
+//         if (minPrice || maxPrice) {
+//           query.price = {};
+//           if (minPrice) query.price.$gte = parseFloat(minPrice);
+//           if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+//         }
+      
+//         try {
+//           const meals = await mealsCollection
+//             .find(query)
+//             .skip((page - 1) * limit) // Pagination
+//             .limit(parseInt(limit)) // Limit
+//             .toArray();
+      
+//           res.json(meals);
+//         } catch (error) {
+//           res.status(500).send({ message: "Failed to fetch meals." });
+//         }
+//       });
+
+
+// merger get api======
+app.get("/api/meals", verifyToken, async (req, res) => {
+        const {
+          search,
+          category,
+          minPrice,
+          maxPrice,
+          page = 1,
+          limit = 10,
+          sortBy = "likes",
+          order = "desc",
+        } = req.query;
+      
+        // Query for filtering
+        const query = {};
+        if (search) query.title = { $regex: search, $options: "i" }; // Search by title
+        if (category) query.category = category; // Filter by category
+        if (minPrice || maxPrice) {
+          query.price = {};
+          if (minPrice) query.price.$gte = parseFloat(minPrice);
+          if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+        }
+      
+        // Sorting logic
+        const sortField = sortBy === "reviews" ? "reviews_count" : "likes";
+        const sortOrder = order === "asc" ? 1 : -1;
+      
+        try {
+          // Fetch meals with filters, sorting, and pagination
+          const meals = await mealsCollection
+            .find(query)
+            .sort({ [sortField]: sortOrder }) // Sort by likes or reviews
+            .skip((page - 1) * parseInt(limit)) // Skip for pagination
+            .limit(parseInt(limit)) // Limit results per page
+            .toArray();
+      
+          // If no more meals are available, indicate to the frontend
+          const hasMore = meals.length === parseInt(limit);
+      
+          res.json({ meals, hasMore });
+        } catch (error) {
+          console.error("Error fetching meals:", error);
+          res.status(500).send({ message: "Failed to fetch meals." });
+        }
+      });
+      
+      
+      
 
 //     all meals for admin table==============
-    app.get("/api/meals", verifyToken, async (req, res) => {
-      const { sortBy = "likes", order = "dsc"} = req.query;
+//     app.get("/api/meals", verifyToken, async (req, res) => {
+//       const { sortBy = "likes", order = "dsc"} = req.query;
 
-      try {
-        const sortField = sortBy === 'reviews' ? 'reviews_count' : 'likes';
-        const sortOrder = order === "asc" ? 1 : -1;
+//       try {
+//         const sortField = sortBy === 'reviews' ? 'reviews_count' : 'likes';
+//         const sortOrder = order === "asc" ? 1 : -1;
 
-        const result = await mealsCollection.find().sort({[sortField]: sortOrder}).toArray();
-        res.send(result);
+//         const result = await mealsCollection.find().sort({[sortField]: sortOrder}).toArray();
+//         res.send(result);
         
-      } catch (error) {
-        console.log(error)
-        res.status(500).send('Failed to fetch sorted Meals')
+//       } catch (error) {
+//         console.log(error)
+//         res.status(500).send('Failed to fetch sorted Meals')
         
-      }
+//       }
    
-    });
+//     });
 
     // sort filter by title, price rang and category===========
-    app.get("/api/meals", async (req, res) => {
-      const { search, category, minPrice, maxPrice, page, limit } = req.query;
+//     app.get("/api/meals", async (req, res) => {
+//       const { search, category, minPrice, maxPrice, page, limit } = req.query;
 
-      // Base query
-      const query = {};
+//       // Base query
+//       const query = {};
 
-      // Search
-      if (search) query.title = { $regex: search, $options: "i" };
+//       // Search
+//       if (search) query.title = { $regex: search, $options: "i" };
 
-      // Category filter
-      if (category) query.category = category;
+//       // Category filter
+//       if (category) query.category = category;
 
-      // Price range filter
-      if (minPrice || maxPrice) {
-        query.price = {};
-        if (minPrice) query.price.$gte = parseFloat(minPrice);
-        if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-      }
+//       // Price range filter
+//       if (minPrice || maxPrice) {
+//         query.price = {};
+//         if (minPrice) query.price.$gte = parseFloat(minPrice);
+//         if (maxPrice) query.price.$lte = parseFloat(maxPrice);
+//       }
 
-      // Pagination
-      const meals = await mealsCollection
-        .find(query)
-        .skip((page - 1) * limit)
-        .limit(parseInt(limit));
+//       // Pagination
+//       const meals = await mealsCollection
+//         .find(query)
+//         .skip((page - 1) * limit)
+//         .limit(parseInt(limit));
 
-      res.json(meals);
-    });
+//       res.json(meals);
+//     });
 
     //     get meal details by id =================
     app.get("/api/meals/:id", verifyToken, async (req, res) => {
@@ -211,56 +314,175 @@ async function run() {
     //       res.json(updateMeal.value);
     //     });
 
-    app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-        const { email } = req.user;
+//     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
+//       try {
+//         const id = req.params.id;
+//         const { email } = req.user;
 
-        if (!email) {
-          return res.status(400).json({ message: "User email is required." });
+//         if (!email) {
+//           return res.status(400).json({ message: "User email is required." });
+//         }
+
+//         // Perform the update in a single operation
+//         const updateMeal = await mealsCollection.findOneAndUpdate(
+//           {
+//             _id: new ObjectId(id),
+//             likeBy: { $ne: email }, // Ensure the user hasn't already liked this meal
+//           },
+//           {
+//             $inc: { likes: 1 }, // Increment like count
+//             $push: { likeBy: email }, // Add user to likedBy array
+//           },
+//           { returnDocument: "after" } // Return the updated document
+//         );
+
+//         // Check if the meal was updated
+//         if (!updateMeal?.value) {
+//           return res
+//             .status(400)
+//             .json({
+//               message: "You have already liked this meal or it does not exist.",
+//             });
+//         }
+
+//         // Success response
+//         res
+//           .status(200)
+//           .json({
+//             message: "Meal liked successfully!",
+//             meal: updateMeal.value,
+//           });
+//       } catch (error) {
+//         console.error("Error liking meal:", error);
+//         res
+//           .status(500)
+//           .json({
+//             message: "An error occurred while liking the meal.",
+//             error: error.message,
+//           });
+//       }
+//     });
+
+app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
+        try {
+          const id = req.params.id;
+          const { email } = req.user;
+      
+          const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
+          if (!meal) return res.status(404).send({ message: "Meal not found." });
+      
+          if (meal.likeBy?.includes(email)) {
+            return res.status(400).send({ message: "You have already liked this meal." });
+          }
+      
+          const updateMeal = await mealsCollection.findOneAndUpdate(
+            { _id: new ObjectId(id) },
+            {
+              $inc: { likes: 1 },
+              $push: { likeBy: email }, // Add email to likeBy array
+            },
+            { returnDocument: "after" }
+          );
+      
+          res.send({ message: "Liked successfully!", meal: updateMeal.value });
+        } catch (error) {
+          console.error("Error liking meal:", error);
+          res.status(500).send({ message: "Failed to like meal." });
         }
-
-        // Perform the update in a single operation
-        const updateMeal = await mealsCollection.findOneAndUpdate(
-          {
-            _id: new ObjectId(id),
-            likeBy: { $ne: email }, // Ensure the user hasn't already liked this meal
-          },
-          {
-            $inc: { likes: 1 }, // Increment like count
-            $push: { likeBy: email }, // Add user to likedBy array
-          },
-          { returnDocument: "after" } // Return the updated document
-        );
-
-        // Check if the meal was updated
-        if (!updateMeal?.value) {
-          return res
-            .status(400)
-            .json({
-              message: "You have already liked this meal or it does not exist.",
-            });
-        }
-
-        // Success response
-        res
-          .status(200)
-          .json({
-            message: "Meal liked successfully!",
-            meal: updateMeal.value,
-          });
-      } catch (error) {
-        console.error("Error liking meal:", error);
-        res
-          .status(500)
-          .json({
-            message: "An error occurred while liking the meal.",
-            error: error.message,
-          });
-      }
-    });
+      });
+      
 
     //       get reviews====================
+
+//     app.get('/api/reviews', async (req, res) => {
+//         try {
+//           const page = parseInt(req.query.page) || 1;
+//           const limit = parseInt(req.query.limit) || 10;
+//           const skip = (page - 1) * limit;
+      
+//           // Fetch meals with reviews count, likes, and ratings
+//           const meals = await mealsCollection
+//             .aggregate([
+//               {
+//                 $lookup: {
+//                   from: 'reviews',
+//                   localField: '_id',
+//                   foreignField: 'mealId',
+//                   as: 'reviews',
+//                 },
+//               },
+//               {
+//                 $addFields: {
+//                   reviews_count: { $size: '$reviews' },
+//                   rating: {
+//                     $cond: {
+//                       if: { $gt: [{ $size: '$reviews' }, 0] },
+//                       then: { $avg: '$reviews.rating' },
+//                       else: 0,
+//                     },
+//                   },
+//                 },
+//               },
+//               {
+//                 $project: {
+//                   _id: 1,
+//                   title: 1,
+//                   likes: 1,
+//                   reviews_count: 1,
+//                   rating: { $round: ['$rating', 1] },
+//                 },
+//               },
+//             ])
+//             .skip(skip)
+//             .limit(limit)
+//             .toArray();
+      
+//           // Total count for pagination
+//           const total = await mealsCollection.countDocuments();
+      
+//           res.status(200).json({ reviews: meals, total });
+//         } catch (error) {
+//           console.error('Error fetching meals:', error);
+//           res.status(500).send({ error: 'An error occurred while fetching meals data.' });
+//         }
+//       });
+      
+      
+
+   // Import the ObjectId function from the MongoDB library to work with MongoDB object IDs
+const ObjectId = require('mongodb').ObjectId;
+
+// Define the route to handle GET requests to '/api/reviews'
+app.get('/api/reviews', async (req, res) => {
+  try {
+    // Fetch all reviews from the reviews collection
+    const reviews = await reviewsCollection.find().toArray();
+
+    // Loop through each review and fetch its related meal details
+    const enrichedReviews = await Promise.all(
+      reviews.map(async (review) => {
+        // Find the corresponding meal using the mealId from the review
+        const meal = await mealsCollection.findOne({ _id: new ObjectId(review.mealId) });
+
+        // Return a new object that combines the review with additional meal details
+        return {
+          ...review, // Include all existing review data
+          mealTitle: meal ? meal.title : "Unknown Meal", // Add meal title or a default value
+          likes: meal ? meal.likes : 0, // Add likes or a default value
+          reviews_count: meal ? meal.reviews_count : 0, // Add reviews count or a default value
+        };
+      })
+    );
+
+    // Send the enriched reviews back to the client
+    res.status(200).send(enrichedReviews);
+  } catch (error) {
+    // Handle any errors that occur during the process
+    console.error('Error fetching reviews:', error);
+    res.status(500).send({ error: 'Failed to fetch reviews' });
+  }
+});
+
     app.get("/api/reviews/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -274,7 +496,7 @@ async function run() {
 
     // make reviews=========================
     app.post("/api/reviews", verifyToken, async (req, res) => {
-      const { mealId, comment, rating } = req.body;
+      const { mealId, comment, rating  } = req.body;
       const { email } = req.user;
       const review = {
         mealId,
@@ -294,7 +516,7 @@ async function run() {
       res.send(result);
     });
 
-    // display reviees=================
+    // display reviews=================
     app.patch("/api/reviews/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const { comment, rating } = req.body;
