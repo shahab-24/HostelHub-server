@@ -12,7 +12,7 @@ const morgan = require("morgan");
 const corsOptions = {
   origin: ["http://localhost:5173", "http://localhost:5174"],
   credentials: true, // Allow cookies and credentials
-  methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
   optionSuccessStatus: 200,
 };
@@ -567,25 +567,33 @@ async function run() {
 
 //       res.send({ message: "Review updated successfully." });
 //     });
+const { ObjectId } = require('mongodb'); // Ensure ObjectId is imported correctly
+
 app.patch("/api/reviews/:id", async (req, res) => {
-        const { id } = req.params;  // This is the review ID
-        const { comment, rating } = req.body;
-      
-        try {
-          const updatedReview = await reviewsCollection.updateOne(
-            { _id: new ObjectId(id) },  // Find the review by its ID
-            { $set: { comment, rating, updatedAt: new Date() } }  // Update the review
-          );
-      
-          if (updatedReview.modifiedCount === 0) {
-            return res.status(404).send({ message: "Review not found or no changes made." });
-          }
-      
-          res.send({ message: "Review updated successfully." });
-        } catch (error) {
-          res.status(500).send({ message: "Failed to update review." });
-        }
-      });
+  const { id } = req.params;  // This is the review ID
+  const { comment, rating } = req.body;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ message: "Invalid review ID." });  // Check if ID is valid
+  }
+
+  try {
+    const updatedReview = await reviewsCollection.updateOne(
+      { _id: new ObjectId(id) },  // Ensure _id is a valid ObjectId
+      { $set: { comment, rating, updatedAt: new Date() } }  // Update the review fields
+    );
+
+    if (updatedReview.modifiedCount === 0) {
+      return res.status(404).send({ message: "Review not found or no changes made." });
+    }
+
+    res.send({ message: "Review updated successfully." });
+  } catch (error) {
+    console.error("Error updating review:", error);  // Log the error on server side
+    res.status(500).send({ message: "Failed to update review." });
+  }
+});
+
       
 
     // deleting reviews==================
