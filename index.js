@@ -10,7 +10,7 @@ const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
 
 const corsOptions = {
-  origin: ["http://localhost:5173", "http://localhost:5174"],
+  origin: ["http://localhost:5173", "http://localhost:5174", "https://hostelhub-f7524.web.app"],
   credentials: true, // Allow cookies and credentials
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
