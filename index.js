@@ -140,18 +140,16 @@ async function run() {
 
 
 
-
+// get all users and search users
 app.get('/users', async (req, res) => {
+        const {search} = req.query
+        const query = search ? { $or : [
+                {name: {$regex: search, $options: 'i'}},
+                {email: {$regex: search, $options: 'i'}}
+        ]} : {}
   try {
-//     const { search = '' } = req.query;  // Get search query from URL params
-//     const regex = new RegExp(search, 'i'); // Case insensitive search
-//     const users = await usersCollection.find({
-//       $or: [
-//         { name: { $regex: regex } },
-//         { email: { $regex: regex } },
-//       ]
-//     }).toArray(); // Ensure the data is an array
-    const users = await usersCollection.find().toArray(); // Ensure the data is an array
+//     
+    const users = await usersCollection.find(query).toArray(); // Ensure the data is an array
 
     if (users.length === 0) {
       return res.status(404).send({ message: "No users found" });
