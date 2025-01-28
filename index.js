@@ -138,65 +138,56 @@ async function run() {
       res.send(result);
     });
 
-    // Meals related api=======================================
-    //     app.get("/api/meals", verifyToken, async (req, res) => {
-    //       // const meals = req.body;
-    //       const result = await mealsCollection.find().toArray();
-    //       res.send(result);
-    //     });
-    // app.get("/api/meals", verifyToken, async (req, res) => {
-    //         const { search, category, minPrice, maxPrice, page = 1, limit = 10, sortBy = "likes", order = "desc" } = req.query;
 
-    //         const query = {};
-    //         if (search) query.title = { $regex: search, $options: "i" }; // Search by title (case-insensitive)
-    //         if (category) query.category = category; // Filter by category
-    //         if (minPrice || maxPrice) {
-    //           query.price = {};
-    //           if (minPrice) query.price.$gte = parseFloat(minPrice);
-    //           if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    //         }
 
-    //         const sortField = sortBy === "reviews" ? "reviews_count" : "likes";
-    //         const sortOrder = order === "asc" ? 1 : -1;
 
-    //         try {
-    //           const meals = await mealsCollection
-    //             .find(query)
-    //             .sort({ [sortField]: sortOrder })
-    //             .skip((page - 1) * limit)
-    //             .limit(parseInt(limit))
-    //             .toArray();
+app.get('/users', async (req, res) => {
+  try {
+//     const { search = '' } = req.query;  // Get search query from URL params
+//     const regex = new RegExp(search, 'i'); // Case insensitive search
+//     const users = await usersCollection.find({
+//       $or: [
+//         { name: { $regex: regex } },
+//         { email: { $regex: regex } },
+//       ]
+//     }).toArray(); // Ensure the data is an array
+    const users = await usersCollection.find().toArray(); // Ensure the data is an array
 
-    //           res.send(meals);
-    //         } catch (error) {
-    //           console.error("Failed to fetch meals:", error);
-    //           res.status(500).send({ message: "Failed to fetch meals." });
-    //         }
-    //       });
-    // app.get("/api/meals", async (req, res) => {
-    //         const { search, category, minPrice, maxPrice, page = 1, limit = 10 } = req.query;
+    if (users.length === 0) {
+      return res.status(404).send({ message: "No users found" });
+    }
 
-    //         const query = {};
-    //         if (search) query.title = { $regex: search, $options: "i" };
-    //         if (category) query.category = category;
-    //         if (minPrice || maxPrice) {
-    //           query.price = {};
-    //           if (minPrice) query.price.$gte = parseFloat(minPrice);
-    //           if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    //         }
+    res.send(users); 
+    console.log(users) // Send the data as a JSON array
+  } catch (err) {
+    console.error("Error fetching users:", err);  // Log the error on the server
+    res.status(500).send({ message: 'Error fetching users' });  // Ensure a JSON response
+  }
+});
 
-    //         try {
-    //           const meals = await mealsCollection
-    //             .find(query)
-    //             .skip((page - 1) * limit) // Pagination
-    //             .limit(parseInt(limit)) // Limit
-    //             .toArray();
+// Update user role to 'admin'
+app.patch('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const query = {_id: new ObjectId(id)}
+  const update = { $set: { role: 'admin'}}
+  try {
+    const user = await usersCollection.updateOne(query, update);
+    if (user.matchedCount === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
 
-    //           res.json(meals);
-    //         } catch (error) {
-    //           res.status(500).send({ message: "Failed to fetch meals." });
-    //         }
-    //       });
+    const updateUser = await usersCollection.findOne(query)
+    res.send(updateUser);  // Send the updated user as a JSON response
+  } catch (err) {
+    console.error("Error updating user role:", err);  // Log the error on the server
+    res.status(500).send({ message: 'Error updating user role' });
+  }
+});
+
+
+
+
+
 
     // merger get api======
     app.get("/api/meals", verifyToken, async (req, res) => {
@@ -294,8 +285,8 @@ async function run() {
 
     //     get meal details by id =================
     app.get("/api/meals/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
+      const {id} = req.params
+      const query = {_id: new ObjectId(id)};
       const result = await mealsCollection.findOne(query);
       res.send(result);
     });
@@ -633,7 +624,7 @@ app.delete('/delete-review/:id', async (req, res) => {
 
     //       res.send({ message: "Review updated successfully." });
     //     });
-     // Ensure ObjectId is imported correctly
+  
 
     app.patch("/api/reviews/:id", async (req, res) => {
       const { id } = req.params; // This is the review ID
@@ -663,32 +654,7 @@ app.delete('/delete-review/:id', async (req, res) => {
     });
 
     // deleting reviews==================
-    //     app.delete("/api/reviews/:id", verifyToken, async (req, res) => {
-    //       const { id } = req.params; // Get the review ID
-    //       const { email } = req.user; // Get the authenticated user's email
-
-    //       try {
-    //         // Delete the review if it belongs to the user
-    //         const result = await reviewsCollection.deleteOne({
-    //           _id: new ObjectId(id),
-    //           email,
-    //         });
-
-    //         if (result.deletedCount === 0) {
-    //           return res
-    //             .status(404)
-    //             .send({
-    //               message:
-    //                 "Review not found or you are not authorized to delete it.",
-    //             });
-    //         }
-
-    //         res.send({ message: "Review deleted successfully." });
-    //       } catch (error) {
-    //         console.error("Error deleting review:", error);
-    //         res.status(500).send({ message: "Failed to delete review." });
-    //       }
-    //     });
+    
     app.delete("/api/reviews/:id", async (req, res) => {
       const { id } = req.params; // This is the review ID
 
@@ -889,11 +855,7 @@ app.get("/api/packages/:name", async (req, res) => {
       }
     });
 
-    // Connect the client to the server	(optional starting in v4.7)
-    //     await client.connect();
-    // Send a ping to confirm a successful connection
-    //     await client.db("admin").command({ ping: 1 });
-    //     console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    
     app.post("/api/jwt", async (req, res) => {
       console.log("request body", req.body);
       const email = req.body;
