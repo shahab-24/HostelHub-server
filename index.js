@@ -10,7 +10,11 @@ const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
 
 const corsOptions = {
-  origin: ["http://localhost:5173", "http://localhost:5174", "https://hostelhub-f7524.web.app"],
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://hostelhub-f7524.web.app",
+  ],
   credentials: true, // Allow cookies and credentials
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
   allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
@@ -40,6 +44,18 @@ const verifyToken = async (req, res, next) => {
   });
 };
 
+// Middleware to verify user subscription
+const verifySubscription = (req, res, next) => {
+  if (
+    req.user.package !== "Silver" &&
+    req.user.package !== "Gold" &&
+    req.user.package !== "Platinum"
+  ) {
+    return res.status(403).json({ message: "Subscription required" });
+  }
+  next();
+};
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.3jtn0.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -57,8 +73,9 @@ async function run() {
     const usersCollection = client.db("HostelHub").collection("users");
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
-    const requestCollection = client.db("HostelHub").collection("mealRequests");
+   
     const packagesCollection = client.db("HostelHub").collection("packages");
+    const requestedMealCollection = client.db('HostelHub').collection('requestedMeal')
 
     //     get admin profile with added meals count=======
     app.get("/api/admin/profile", verifyToken, async (req, res) => {
@@ -138,54 +155,51 @@ async function run() {
       res.send(result);
     });
 
+    // get all users and search users
+    app.get("/users", verifyToken, async (req, res) => {
+      const { search } = req.query;
+      const query = search
+        ? {
+            $or: [
+              { name: { $regex: search, $options: "i" } },
+              { email: { $regex: search, $options: "i" } },
+            ],
+          }
+        : {};
+      try {
+        //
+        const users = await usersCollection.find(query).toArray(); // Ensure the data is an array
 
+        if (users.length === 0) {
+          return res.status(404).send({ message: "No users found" });
+        }
 
-// get all users and search users
-app.get('/users', async (req, res) => {
-        const {search} = req.query
-        const query = search ? { $or : [
-                {name: {$regex: search, $options: 'i'}},
-                {email: {$regex: search, $options: 'i'}}
-        ]} : {}
-  try {
-//     
-    const users = await usersCollection.find(query).toArray(); // Ensure the data is an array
-
-    if (users.length === 0) {
-      return res.status(404).send({ message: "No users found" });
-    }
-
-    res.send(users); 
-    console.log(users) // Send the data as a JSON array
-  } catch (err) {
-    console.error("Error fetching users:", err);  // Log the error on the server
-    res.status(500).send({ message: 'Error fetching users' });  // Ensure a JSON response
-  }
-});
-
-// Update user role to 'admin'
-app.patch('/api/users/:id', async (req, res) => {
-  const { id } = req.params;
-  const query = {_id: new ObjectId(id)}
-  const update = { $set: { role: 'admin'}}
-  try {
-    const user = await usersCollection.updateOne(query, update);
-    if (user.matchedCount === 0) {
-        return res.status(404).json({ message: 'User not found' });
+        res.send(users);
+        console.log(users); // Send the data as a JSON array
+      } catch (err) {
+        console.error("Error fetching users:", err); // Log the error on the server
+        res.status(500).send({ message: "Error fetching users" }); // Ensure a JSON response
       }
+    });
 
-    const updateUser = await usersCollection.findOne(query)
-    res.send(updateUser);  // Send the updated user as a JSON response
-  } catch (err) {
-    console.error("Error updating user role:", err);  // Log the error on the server
-    res.status(500).send({ message: 'Error updating user role' });
-  }
-});
+    // Update user role to 'admin'
+    app.patch("/api/users/:id", async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const update = { $set: { role: "admin" } };
+      try {
+        const user = await usersCollection.updateOne(query, update);
+        if (user.matchedCount === 0) {
+          return res.status(404).json({ message: "User not found" });
+        }
 
-
-
-
-
+        const updateUser = await usersCollection.findOne(query);
+        res.send(updateUser); // Send the updated user as a JSON response
+      } catch (err) {
+        console.error("Error updating user role:", err); // Log the error on the server
+        res.status(500).send({ message: "Error updating user role" });
+      }
+    });
 
     // merger get api======
     app.get("/api/meals", verifyToken, async (req, res) => {
@@ -226,7 +240,7 @@ app.patch('/api/users/:id', async (req, res) => {
         // If no more meals are available, indicate to the frontend
         const hasMore = meals.length === parseInt(limit);
 
-        res.json({ meals, hasMore });
+        res.send({ meals, hasMore });
       } catch (error) {
         console.error("Error fetching meals:", error);
         res.status(500).send({ message: "Failed to fetch meals." });
@@ -283,8 +297,8 @@ app.patch('/api/users/:id', async (req, res) => {
 
     //     get meal details by id =================
     app.get("/api/meals/:id", verifyToken, async (req, res) => {
-      const {id} = req.params
-      const query = {_id: new ObjectId(id)};
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
       const result = await mealsCollection.findOne(query);
       res.send(result);
     });
@@ -498,7 +512,7 @@ app.patch('/api/users/:id', async (req, res) => {
       }
     });
 
-//     meal id related reviews get==============
+    //     meal id related reviews get==============
     app.get("/api/reviews/:id", async (req, res) => {
       const { id } = req.params; // This is the mealId
 
@@ -513,73 +527,69 @@ app.patch('/api/users/:id', async (req, res) => {
       }
     });
 
-//     get userid related reviews meams loggedin user reviews =====
-// Route to get logged-in user's reviews with meal details
-app.get('/user-reviews', async (req, res) => {
-        const userEmail = req.query.email;
-    
-        try {
-            // Fetch reviews made by the logged-in user
-            const userReviews = await reviewsCollection.find({ email: userEmail }).toArray();
-    
-            // Fetch the meal details for each review
-            const mealIds = userReviews.map((review) => new ObjectId(review.mealId));
-            const meals = await mealsCollection.find({ _id: { $in: mealIds } }).toArray();
-    
-            // Map reviews with their corresponding meal details
-            const reviewsWithMeals = userReviews.map((review) => {
-                const meal = meals.find((m) => m._id.toString() === review.mealId);
-                return {
-                    ...review,
-                    mealTitle: meal?.title || 'Unknown Meal',
-                    likes: meal?.likes || 0,
-                    reviewsCount: meal?.reviews_count || 0,
-                };
-            });
-    
-            res.send(reviewsWithMeals);
-        } catch (error) {
-            res.status(500).send({ error: 'Failed to fetch reviews' });
-        }
+    //     get userid related reviews meams loggedin user reviews =====
+    // Route to get logged-in user's reviews with meal details
+    app.get("/user-reviews", async (req, res) => {
+      const userEmail = req.query.email;
+
+      try {
+        // Fetch reviews made by the logged-in user
+        const userReviews = await reviewsCollection
+          .find({ email: userEmail })
+          .toArray();
+
+        // Fetch the meal details for each review
+        const mealIds = userReviews.map(
+          (review) => new ObjectId(review.mealId)
+        );
+        const meals = await mealsCollection
+          .find({ _id: { $in: mealIds } })
+          .toArray();
+
+        // Map reviews with their corresponding meal details
+        const reviewsWithMeals = userReviews.map((review) => {
+          const meal = meals.find((m) => m._id.toString() === review.mealId);
+          return {
+            ...review,
+            mealTitle: meal?.title || "Unknown Meal",
+            likes: meal?.likes || 0,
+            reviewsCount: meal?.reviews_count || 0,
+          };
+        });
+
+        res.send(reviewsWithMeals);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch reviews" });
+      }
     });
 
-//     edit review by logged in user===
-app.put('/edit-review/:id', async (req, res) => {
-        const { id } = req.params;
-        const { comment, rating } = req.body;
-        try {
-            const result = await reviewsCollection.updateOne(
-                { _id: new ObjectId(id) },
-                { $set: { comment, rating } }
-            );
-            res.send(result);
-        } catch (error) {
-            res.status(500).send({ error: 'Failed to edit review' });
-        }
+    //     edit review by logged in user===
+    app.put("/edit-review/:id", async (req, res) => {
+      const { id } = req.params;
+      const { comment, rating } = req.body;
+      try {
+        const result = await reviewsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { comment, rating } }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to edit review" });
+      }
     });
 
-//     delete review====
-app.delete('/delete-review/:id', async (req, res) => {
-        const { id } = req.params;
-        try {
-            const result = await reviewsCollection.deleteOne({ _id: new ObjectId(id) });
-            res.send(result);
-        } catch (error) {
-            res.status(500).send({ error: 'Failed to delete review' });
-        }
+    //     delete review====
+    app.delete("/delete-review/:id", async (req, res) => {
+      const { id } = req.params;
+      try {
+        const result = await reviewsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to delete review" });
+      }
     });
-    
-    
-    
-    
-      
-      
-      
-      
-      
-      
-      
-      
 
     // make reviews=========================
     app.post("/api/reviews", verifyToken, async (req, res) => {
@@ -622,7 +632,6 @@ app.delete('/delete-review/:id', async (req, res) => {
 
     //       res.send({ message: "Review updated successfully." });
     //     });
-  
 
     app.patch("/api/reviews/:id", async (req, res) => {
       const { id } = req.params; // This is the review ID
@@ -652,7 +661,7 @@ app.delete('/delete-review/:id', async (req, res) => {
     });
 
     // deleting reviews==================
-    
+
     app.delete("/api/reviews/:id", async (req, res) => {
       const { id } = req.params; // This is the review ID
 
@@ -673,27 +682,34 @@ app.delete('/delete-review/:id', async (req, res) => {
 
     //       get packages===================
 
-
     // Fetch all packages from the database
     app.get("/api/packages", async (req, res) => {
-        try {
-          const packages = await packagesCollection.find().toArray(); // Fetch all packages
-          res.send(packages); // Send as JSON response
-        } catch (error) {
-          console.error("Error fetching packages:", error.message);
-          res.status(500).send({ message: "Failed to fetch packages." });
-        }
-      });
+      try {
+        const packages = await packagesCollection.find().toArray(); // Fetch all packages
+        res.send(packages); // Send as JSON response
+      } catch (error) {
+        console.error("Error fetching packages:", error.message);
+        res.status(500).send({ message: "Failed to fetch packages." });
+      }
+    });
 
-
-//       get pakcage by pckage name====
-app.get("/api/packages/:name", async (req, res) => {
-        const { name } = req.params;
+    //       get pakcage by pckage name====
+    app.get("/packages/:name", async (req, res) => {
+        let { name } = req.params;
+      
         try {
-          const pkg = await packagesCollection.findOne({ name });
+          // Convert the name to lowercase
+          name = name.toLowerCase();
+      
+          // Use a case-insensitive regex query
+          const pkg = await packagesCollection.findOne({
+            name: { $regex: new RegExp(`^${name}$`, "i") },
+          });
+      
           if (!pkg) {
             return res.status(404).send({ message: "Package not found." });
           }
+      
           res.send(pkg);
         } catch (error) {
           console.error("Error fetching package:", error.message);
@@ -701,29 +717,37 @@ app.get("/api/packages/:name", async (req, res) => {
         }
       });
       
-      
-
 
     //       request meals==============
-    app.post("/api/meal-requests", verifyToken, async (req, res) => {
-      const { mealId, message } = req.body; // Get meal ID and user message from the request body
-      const { email } = req.user; // Get the authenticated user's email
+    app.post("/api/request-meals/:id", verifyToken, async (req, res) => {
+        const {id} = req.params;
+      const { email } = req.body; // Get meal ID and user 
 
+const requestUser = await usersCollection.findOne({email: email})
+// console.log(requestUser)
+
+
+      if (!id || !requestUser) {
+        return res.status(400).send({ error: "Meal ID and User ID are required." });
+      }
+    
       try {
-        const request = {
-          mealId: new ObjectId(mealId),
-          message,
-          email,
-          createdAt: new Date(),
-        };
+        const meal = await mealsCollection.findOne({_id: new ObjectId(id)})
+
+        if(!meal) return res.status(404).send({message: 'meal not found'})
+                const request = {
+                        ...meal, // Spread the meal data into the request object
+                         // Include the meal ID
+                        userId: requestUser._id, // Use the _id of the user from the database
+                        email, // Include the user's email
+                        status: "pending", // Request status
+                        requestDate: new Date(), // Timestamp for the request
+                      };
 
         // Insert the meal request into a `mealRequests` collection
-        const result = await requestCollection.insertOne(request);
-
-        res.status(201).send({
-          message: "Meal request submitted successfully.",
-          requestId: result.insertedId,
-        });
+        const result = await requestedMealCollection.insertOne(request);
+res.send(result)
+        
       } catch (error) {
         console.error("Error submitting meal request:", error);
         res.status(500).send({ message: "Failed to submit meal request." });
@@ -853,7 +877,6 @@ app.get("/api/packages/:name", async (req, res) => {
       }
     });
 
-    
     app.post("/api/jwt", async (req, res) => {
       console.log("request body", req.body);
       const email = req.body;
@@ -884,46 +907,43 @@ app.get("/api/packages/:name", async (req, res) => {
       }
     });
 
+    //     stripe intent============
+//     app.post("/api/payment-intent", async (req, res) => {
+//       const { amount } = req.body;
+//       try {
+//         const paymentIntent = await stripe.paymentIntents.create({
+//           amount, // Amount in cents
+//           currency: "usd",
+//           payment_method_types: ["card"],
+//         });
+//         res.send({ clientSecret: paymentIntent.client_secret });
+//       } catch (error) {
+//         console.error("Error creating payment intent:", error.message);
+//         res.status(500).send({ message: "Failed to create payment intent." });
+//       }
+//     });
 
-//     stripe intent============
-app.post("/api/payment-intent", async (req, res) => {
-        const { amount } = req.body;
-        try {
-          const paymentIntent = await stripe.paymentIntents.create({
-            amount, // Amount in cents
-            currency: "usd",
-            payment_method_types: ["card"],
-          });
-          res.send({ clientSecret: paymentIntent.client_secret });
-        } catch (error) {
-          console.error("Error creating payment intent:", error.message);
-          res.status(500).send({ message: "Failed to create payment intent." });
-        }
-      });
-
-//       save payment details====
-app.post("/api/save-payment", async (req, res) => {
-        const { packageName, price, transactionId } = req.body;
-        try {
-          await paymentsCollection.insertOne({
-            packageName,
-            price,
-            transactionId,
-            timestamp: new Date(),
-          });
-          // Update user's package (assign badge, etc.)
-          await usersCollection.updateOne(
-            { email: req.user.email }, // Replace with actual user identification
-            { $set: { packageName, badge: packageName.toUpperCase() } }
-          );
-          res.send({ message: "Payment saved successfully." });
-        } catch (error) {
-          console.error("Error saving payment:", error.message);
-          res.status(500).send({ message: "Failed to save payment details." });
-        }
-      });
-      
-      
+//     //       save payment details====
+//     app.post("/api/save-payment", async (req, res) => {
+//       const { packageName, price, transactionId } = req.body;
+//       try {
+//         await paymentsCollection.insertOne({
+//           packageName,
+//           price,
+//           transactionId,
+//           timestamp: new Date(),
+//         });
+//         // Update user's package (assign badge, etc.)
+//         await usersCollection.updateOne(
+//           { email: req.user.email }, // Replace with actual user identification
+//           { $set: { packageName, badge: packageName.toUpperCase() } }
+//         );
+//         res.send({ message: "Payment saved successfully." });
+//       } catch (error) {
+//         console.error("Error saving payment:", error.message);
+//         res.status(500).send({ message: "Failed to save payment details." });
+//       }
+//     });
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
