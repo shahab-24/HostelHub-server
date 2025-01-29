@@ -73,9 +73,11 @@ async function run() {
     const usersCollection = client.db("HostelHub").collection("users");
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
-   
+
     const packagesCollection = client.db("HostelHub").collection("packages");
-    const requestedMealCollection = client.db('HostelHub').collection('requestedMeal')
+    const requestedMealCollection = client
+      .db("HostelHub")
+      .collection("requestedMeal");
 
     //     get admin profile with added meals count=======
     app.get("/api/admin/profile", verifyToken, async (req, res) => {
@@ -296,11 +298,27 @@ async function run() {
     //     });
 
     //     get meal details by id =================
+
     app.get("/api/meals/:id", verifyToken, async (req, res) => {
-      const { id } = req.params;
-      const query = { _id: new ObjectId(id) };
-      const result = await mealsCollection.findOne(query);
-      res.send(result);
+      try {
+        const id = req.params.id;
+
+        // Check if the ID is valid before converting to ObjectId
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).json({ error: "Invalid meal ID" });
+        }
+
+        const query = { _id: new ObjectId(id) };
+        const result = await mealsCollection.findOne(query);
+
+        if (!result) {
+          return res.status(404).json({ error: "Meal not found" });
+        }
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
     });
 
     //     add meals by admin ===================
@@ -695,63 +713,104 @@ async function run() {
 
     //       get pakcage by pckage name====
     app.get("/packages/:name", async (req, res) => {
-        let { name } = req.params;
-      
-        try {
-          // Convert the name to lowercase
-          name = name.toLowerCase();
-      
-          // Use a case-insensitive regex query
-          const pkg = await packagesCollection.findOne({
-            name: { $regex: new RegExp(`^${name}$`, "i") },
-          });
-      
-          if (!pkg) {
-            return res.status(404).send({ message: "Package not found." });
-          }
-      
-          res.send(pkg);
-        } catch (error) {
-          console.error("Error fetching package:", error.message);
-          res.status(500).send({ message: "Failed to fetch package details." });
+      let { name } = req.params;
+
+      try {
+        // Convert the name to lowercase
+        name = name.toLowerCase();
+
+        // Use a case-insensitive regex query
+        const pkg = await packagesCollection.findOne({
+          name: { $regex: new RegExp(`^${name}$`, "i") },
+        });
+
+        if (!pkg) {
+          return res.status(404).send({ message: "Package not found." });
         }
-      });
-      
+
+        res.send(pkg);
+      } catch (error) {
+        console.error("Error fetching package:", error.message);
+        res.status(500).send({ message: "Failed to fetch package details." });
+      }
+    });
 
     //       request meals==============
+
+
     app.post("/api/request-meals/:id", verifyToken, async (req, res) => {
-        const {id} = req.params;
-      const { email } = req.body; // Get meal ID and user 
 
-const requestUser = await usersCollection.findOne({email: email})
-// console.log(requestUser)
-
-
-      if (!id || !requestUser) {
-        return res.status(400).send({ error: "Meal ID and User ID are required." });
-      }
+        try {
+            const { id } = req.params;
+            const { email } = req.body; // Get meal ID and user email
     
-      try {
-        const meal = await mealsCollection.findOne({_id: new ObjectId(id)})
+            // Validate ObjectId
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ error: "Invalid meal ID format." });
+            }
+    
+            // Find user by email
+            const requestUser = await usersCollection.findOne({ email });
+    
+            if (!requestUser) {
+                return res.status(404).send({ error: "User not found." });
+            }
+    
+            // Find meal by ID
+            const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
+    
+            if (!meal) {
+                return res.status(404).send({ message: "Meal not found." });
+            }
+    
+            // Create a new request object
+            const request = {
+                mealId: new ObjectId(meal._id) , // Store meal ID separately
+                title: meal.title,
+                category: meal.category,
+                image: meal.image,
+                description: meal.description,
+                likes: meal.likes,
+                reviews_count: meal.reviews_count,
+                status: "pending", // Request status
+                requestDate: new Date(), // Timestamp for the request
+                userId: requestUser._id, // Use the user's _id from database
+                email: requestUser.email, // Ensure email is included
+            };
+    
+            // Insert the meal request into the `requestedMealCollection`
+            const result = await requestedMealCollection.insertOne(request);
+            res.status(201).send({ message: "Meal request submitted successfully.", result });
+        } catch (error) {
+            console.error("Error submitting meal request:", error);
+            res.status(500).send({ message: "Failed to submit meal request." });
+        }
+    });
+    ;
 
-        if(!meal) return res.status(404).send({message: 'meal not found'})
-                const request = {
-                        ...meal, // Spread the meal data into the request object
-                         // Include the meal ID
-                        userId: requestUser._id, // Use the _id of the user from the database
-                        email, // Include the user's email
-                        status: "pending", // Request status
-                        requestDate: new Date(), // Timestamp for the request
-                      };
+app.get("/api/requested-meals/:email", async (req, res) => {
+    try {
+        const { email } = req.params;
+        const user = await usersCollection.findOne({ email });
 
-        // Insert the meal request into a `mealRequests` collection
-        const result = await requestedMealCollection.insertOne(request);
-res.send(result)
-        
-      } catch (error) {
-        console.error("Error submitting meal request:", error);
-        res.status(500).send({ message: "Failed to submit meal request." });
-      }
+        if (!user) {
+            return res.status(404).send({ error: "User not found." });
+        }
+
+        const requestedMeals = await requestedMealCollection.find({ userId: user._id }).toArray();
+
+        res.status(200).send(requestedMeals);
+    } catch (error) {
+        console.error("Error fetching requested meals:", error);
+        res.status(500).send({ message: "Failed to fetch requested meals." });
+    }
+});
+
+    app.delete("/api/meals/requests/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await requestedMealCollection.deleteOne(query);
+      res.send(result);
     });
 
     //       average rating========
@@ -841,6 +900,62 @@ res.send(result)
       }
     });
 
+
+//     serve meals=======================
+    app.get("/api/requested-meals", async (req, res) => {
+        try {
+          const { search } = req.query; // Get search query (email or username)
+      
+          // Construct the search query to filter meals based on email or username
+          const filter = search
+            ? {
+                $or: [
+                  { email: { $regex: search, $options: "i" } },
+                  { "userId.name": { $regex: search, $options: "i" } }, // Assuming the user name is in the userId object
+                ],
+              }
+            : {};
+      
+          // Fetch meals with optional filter
+          const requestedMeals = await requestedMealCollection.find(filter).toArray();
+      
+          res.status(200).send(requestedMeals);
+        } catch (error) {
+          console.error("Error fetching requested meals:", error);
+          res.status(500).send({ message: "Failed to fetch requested meals." });
+        }
+      });
+
+
+//       serve meal status update==============
+      app.patch("/api/meals/requests/:id", async (req, res) => {
+        try {
+          const { id } = req.params;
+          const { status } = req.body;
+      
+          // Validate ObjectId format
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({ error: "Invalid meal ID format." });
+          }
+      
+          // Find the meal by ID and update its status to 'delivered'
+          const result = await requestedMealCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { status: 'delivered' } }
+          );
+      
+          if (result.modifiedCount === 0) {
+            return res.status(404).send({ message: "Meal not found or already delivered." });
+          }
+      
+          res.status(200).send({ message: "Meal status updated to delivered." });
+        } catch (error) {
+          console.error("Error updating meal status:", error);
+          res.status(500).send({ message: "Failed to update meal status." });
+        }
+      });
+      
+
     // only premium user can like upcoming meals==============
     app.post("/api/meals/:id/like", async (req, res) => {
       const { userId, userType } = req.body; // Assume user data is passed in request
@@ -908,42 +1023,42 @@ res.send(result)
     });
 
     //     stripe intent============
-//     app.post("/api/payment-intent", async (req, res) => {
-//       const { amount } = req.body;
-//       try {
-//         const paymentIntent = await stripe.paymentIntents.create({
-//           amount, // Amount in cents
-//           currency: "usd",
-//           payment_method_types: ["card"],
-//         });
-//         res.send({ clientSecret: paymentIntent.client_secret });
-//       } catch (error) {
-//         console.error("Error creating payment intent:", error.message);
-//         res.status(500).send({ message: "Failed to create payment intent." });
-//       }
-//     });
+    //     app.post("/api/payment-intent", async (req, res) => {
+    //       const { amount } = req.body;
+    //       try {
+    //         const paymentIntent = await stripe.paymentIntents.create({
+    //           amount, // Amount in cents
+    //           currency: "usd",
+    //           payment_method_types: ["card"],
+    //         });
+    //         res.send({ clientSecret: paymentIntent.client_secret });
+    //       } catch (error) {
+    //         console.error("Error creating payment intent:", error.message);
+    //         res.status(500).send({ message: "Failed to create payment intent." });
+    //       }
+    //     });
 
-//     //       save payment details====
-//     app.post("/api/save-payment", async (req, res) => {
-//       const { packageName, price, transactionId } = req.body;
-//       try {
-//         await paymentsCollection.insertOne({
-//           packageName,
-//           price,
-//           transactionId,
-//           timestamp: new Date(),
-//         });
-//         // Update user's package (assign badge, etc.)
-//         await usersCollection.updateOne(
-//           { email: req.user.email }, // Replace with actual user identification
-//           { $set: { packageName, badge: packageName.toUpperCase() } }
-//         );
-//         res.send({ message: "Payment saved successfully." });
-//       } catch (error) {
-//         console.error("Error saving payment:", error.message);
-//         res.status(500).send({ message: "Failed to save payment details." });
-//       }
-//     });
+    //     //       save payment details====
+    //     app.post("/api/save-payment", async (req, res) => {
+    //       const { packageName, price, transactionId } = req.body;
+    //       try {
+    //         await paymentsCollection.insertOne({
+    //           packageName,
+    //           price,
+    //           transactionId,
+    //           timestamp: new Date(),
+    //         });
+    //         // Update user's package (assign badge, etc.)
+    //         await usersCollection.updateOne(
+    //           { email: req.user.email }, // Replace with actual user identification
+    //           { $set: { packageName, badge: packageName.toUpperCase() } }
+    //         );
+    //         res.send({ message: "Payment saved successfully." });
+    //       } catch (error) {
+    //         console.error("Error saving payment:", error.message);
+    //         res.status(500).send({ message: "Failed to save payment details." });
+    //       }
+    //     });
   } finally {
     // Ensures that the client will close when you finish/error
     //     await client.close();
