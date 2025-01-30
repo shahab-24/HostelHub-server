@@ -955,7 +955,7 @@ app.get('/search', async (req, res) => {
       const email = req.body;
 
       const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "365d",
+        expiresIn: "1h",
       });
       res
         .cookie("token", token, {
