@@ -66,7 +66,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 
 async function run() {
   try {
@@ -140,7 +139,7 @@ async function run() {
     });
 
     //     user related api===================================
-    app.post("/api/users/:email", async (req, res) => {
+    app.post("/api/users/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const query = { email };
       const user = req.body;
@@ -185,7 +184,7 @@ async function run() {
     });
 
     // Update user role to 'admin'
-    app.patch("/api/users/:id", async (req, res) => {
+    app.patch("/api/users/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const update = { $set: { role: "admin" } };
@@ -204,26 +203,10 @@ async function run() {
     });
 
 
-//     search in banner section====
-// app.get('/api/meals', async (req, res) => {
-//         const query = req.query.query; // Extract search query from URL
-//         try {
-//           const meals = mealsCollection.find({
-//             $or: [
-//               { title: { $regex: query, $options: 'i' } },  // Case-insensitive search on title
-//               { description: { $regex: query, $options: 'i' } },  // Case-insensitive search on description
-//               { ingredients: { $regex: query, $options: 'i' } },  // Case-insensitive search on ingredients
-//             ]
-//           });
-//           res.send({ meals });
-//         } catch (err) {
-//           res.status(500).send({ message: 'Error fetching meals', error: err });
-//         }
-//       });
-
+//
 
     // Get meal by ID
-app.get("/api/meals/:id", async (req, res) => {
+app.get("/api/meals/:id", verifyToken, async (req, res) => {
         const { id } = req.params;
 
         if (!ObjectId.isValid(id)) {
@@ -289,57 +272,11 @@ app.get("/api/meals/:id", async (req, res) => {
       }
     });
 
-    //     all meals for admin table==============
-    //     app.get("/api/meals", verifyToken, async (req, res) => {
-    //       const { sortBy = "likes", order = "dsc"} = req.query;
 
-    //       try {
-    //         const sortField = sortBy === 'reviews' ? 'reviews_count' : 'likes';
-    //         const sortOrder = order === "asc" ? 1 : -1;
-
-    //         const result = await mealsCollection.find().sort({[sortField]: sortOrder}).toArray();
-    //         res.send(result);
-
-    //       } catch (error) {
-    //         console.log(error)
-    //         res.status(500).send('Failed to fetch sorted Meals')
-
-    //       }
-
-    //     });
-
-    // sort filter by title, price rang and category===========
-    //     app.get("/api/meals", async (req, res) => {
-    //       const { search, category, minPrice, maxPrice, page, limit } = req.query;
-
-    //       // Base query
-    //       const query = {};
-
-    //       // Search
-    //       if (search) query.title = { $regex: search, $options: "i" };
-
-    //       // Category filter
-    //       if (category) query.category = category;
-
-    //       // Price range filter
-    //       if (minPrice || maxPrice) {
-    //         query.price = {};
-    //         if (minPrice) query.price.$gte = parseFloat(minPrice);
-    //         if (maxPrice) query.price.$lte = parseFloat(maxPrice);
-    //       }
-
-    //       // Pagination
-    //       const meals = await mealsCollection
-    //         .find(query)
-    //         .skip((page - 1) * limit)
-    //         .limit(parseInt(limit));
-
-    //       res.json(meals);
-    //     });
 
     //     get meal details by id =================
 
-    app.get("/api/meals/:id", verifyToken, async (req, res) => {
+    app.get("/api/meals/:id", async (req, res) => {
       try {
         const id = req.params.id;
 
@@ -371,7 +308,7 @@ app.get("/api/meals/:id", async (req, res) => {
     // Update meal by ID
   
 
-app.put("/api/meals/:id", async (req, res) => {
+app.put("/api/meals/:id",  verifyToken,async (req, res) => {
       const { id } = req.params;
       const { title, description, price, ingredients, category, image, distributorName, distributorEmail, rating, reviews_count, likes } = req.body;
     
@@ -406,7 +343,7 @@ app.put("/api/meals/:id", async (req, res) => {
     });
 
 
-    app.delete("/api/meals/:id", async (req, res) => {
+    app.delete("/api/meals/:id", verifyToken, async (req, res) => {
         const { id } = req.params;
       
         try {
@@ -424,88 +361,7 @@ app.put("/api/meals/:id", async (req, res) => {
       
     
 
-    //     increase like==========
-    //     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
-    //       const id = req.params.id;
-    // //
-    //       const { email } = req.user;
-    // //
-
-    //       //       const query = { _id: new ObjectId(id) }
-    //       const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
-    //       if (!meal) {
-    //         return res.send({ message: "Meal not found" });
-    //       }
-
-    //       if (meal.likedBy?.includes(email)) {
-    //         return res.status(400).send({ message: "You already like this" });
-    //       }
-
-    //       const updateMeal = await mealsCollection.findOneAndUpdate(
-    //         { _id: new ObjectId(id) , likeBy: { $ne : email}},
-    //         {
-    //           $inc: { likes: 1 },
-    //           $push: { likeBy: email },
-    //         },
-    //         { returnDocument: "after" }
-    //       );
-
-    //       if (!updateMeal?.value) {
-    //         return res.status(400).send({ message: "You already liked this meal." });
-    //       }
-
-    //       res.json(updateMeal.value);
-    //     });
-
-    //     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
-    //       try {
-    //         const id = req.params.id;
-    //         const { email } = req.user;
-
-    //         if (!email) {
-    //           return res.status(400).json({ message: "User email is required." });
-    //         }
-
-    //         // Perform the update in a single operation
-    //         const updateMeal = await mealsCollection.findOneAndUpdate(
-    //           {
-    //             _id: new ObjectId(id),
-    //             likeBy: { $ne: email }, // Ensure the user hasn't already liked this meal
-    //           },
-    //           {
-    //             $inc: { likes: 1 }, // Increment like count
-    //             $push: { likeBy: email }, // Add user to likedBy array
-    //           },
-    //           { returnDocument: "after" } // Return the updated document
-    //         );
-
-    //         // Check if the meal was updated
-    //         if (!updateMeal?.value) {
-    //           return res
-    //             .status(400)
-    //             .json({
-    //               message: "You have already liked this meal or it does not exist.",
-    //             });
-    //         }
-
-    //         // Success response
-    //         res
-    //           .status(200)
-    //           .json({
-    //             message: "Meal liked successfully!",
-    //             meal: updateMeal.value,
-    //           });
-    //       } catch (error) {
-    //         console.error("Error liking meal:", error);
-    //         res
-    //           .status(500)
-    //           .json({
-    //             message: "An error occurred while liking the meal.",
-    //             error: error.message,
-    //           });
-    //       }
-    //     });
-
+  
     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
@@ -627,7 +483,7 @@ app.put("/api/meals/:id", async (req, res) => {
     });
 
     //     meal id related reviews get==============
-    app.get("/api/reviews/:id", async (req, res) => {
+    app.get("/api/reviews/:id", verifyToken, async (req, res) => {
       const { id } = req.params; // This is the mealId
 
       try {
@@ -678,7 +534,7 @@ app.put("/api/meals/:id", async (req, res) => {
     });
 
     //     edit review by logged in user===
-    app.put("/edit-review/:id", async (req, res) => {
+    app.put("/edit-review/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const { comment, rating } = req.body;
       try {
@@ -693,7 +549,7 @@ app.put("/api/meals/:id", async (req, res) => {
     });
 
     //     delete review====
-    app.delete("/delete-review/:id", async (req, res) => {
+    app.delete("/delete-review/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       try {
         const result = await reviewsCollection.deleteOne({
@@ -727,27 +583,9 @@ app.put("/api/meals/:id", async (req, res) => {
       res.send(result);
     });
 
-    // display reviews=================
-    //     app.patch("/api/reviews/:id", verifyToken, async (req, res) => {
-    //       const { id } = req.params;
-    //       const { comment, rating } = req.body;
-    //       const { email } = req.user;
+ 
 
-    //       const result = await reviewsCollection.updateOne(
-    //         { _id: new ObjectId(id), email }, // Only allow the owner to edit
-    //         { $set: { comment, rating, updatedAt: new Date() } }
-    //       );
-
-    //       if (result.modifiedCount === 0) {
-    //         return res.status(404).send({
-    //           message: "Review not found or you are not authorized to edit it.",
-    //         });
-    //       }
-
-    //       res.send({ message: "Review updated successfully." });
-    //     });
-
-    app.patch("/api/reviews/:id", async (req, res) => {
+    app.patch("/api/reviews/:id", verifyToken, async (req, res) => {
       const { id } = req.params; // This is the review ID
       const { comment, rating } = req.body;
 
@@ -776,7 +614,7 @@ app.put("/api/meals/:id", async (req, res) => {
 
     // deleting reviews==================
 
-    app.delete("/api/reviews/:id", async (req, res) => {
+    app.delete("/api/reviews/:id", verifyToken, async (req, res) => {
       const { id } = req.params; // This is the review ID
 
       try {
@@ -884,7 +722,7 @@ app.put("/api/meals/:id", async (req, res) => {
     });
     ;
 
-app.get("/api/requested-meals/:email", async (req, res) => {
+app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
     try {
         const { email } = req.params;
         const user = await usersCollection.findOne({ email });
@@ -948,7 +786,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
     });
 
     // get upcoming meals and sorted by likes===============
-    app.get("/api/upcoming-meals", async (req, res) => {
+    app.get("/api/upcoming-meals", verifyToken, async (req, res) => {
       try {
         const meals = await mealsCollection
           .find({ status: "upcoming" })
@@ -961,7 +799,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
     });
 
     // make food item publish==============================
-    app.put("/api/meals/:id/publish", async (req, res) => {
+    app.put("/api/meals/:id/publish", verifyToken, async (req, res) => {
       try {
         const { id } = req.params;
 
@@ -977,7 +815,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
     });
 
     // created upcoming-meals============================
-    app.post("/api/upcoming-meals", async (req, res) => {
+    app.post("/api/upcoming-meals",  verifyToken, async (req, res) => {
       try {
         const newMeal = {
           title: req.body.title,
@@ -1000,7 +838,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
 
 
 //     serve meals=======================
-    app.get("/api/requested-meals", async (req, res) => {
+    app.get("/api/requested-meals", verifyToken, async (req, res) => {
         try {
           const { search } = req.query; // Get search query (email or username)
       
@@ -1026,7 +864,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
 
 
 //       serve meal status update==============
-      app.patch("/api/meals/requests/:id", async (req, res) => {
+      app.patch("/api/meals/requests/:id", verifyToken, async (req, res) => {
         try {
           const { id } = req.params;
           const { status } = req.body;
@@ -1058,7 +896,7 @@ app.get("/api/requested-meals/:email", async (req, res) => {
 
 
     // only premium user can like upcoming meals==============
-    app.post("/api/meals/:id/like", async (req, res) => {
+    app.post("/api/meals/:id/like", verifyToken, async (req, res) => {
       const { userId, userType } = req.body; // Assume user data is passed in request
       const { id } = req.params;
 
