@@ -203,8 +203,48 @@ async function run() {
       }
     });
 
+
+//     search in banner section====
+// app.get('/api/meals', async (req, res) => {
+//         const query = req.query.query; // Extract search query from URL
+//         try {
+//           const meals = mealsCollection.find({
+//             $or: [
+//               { title: { $regex: query, $options: 'i' } },  // Case-insensitive search on title
+//               { description: { $regex: query, $options: 'i' } },  // Case-insensitive search on description
+//               { ingredients: { $regex: query, $options: 'i' } },  // Case-insensitive search on ingredients
+//             ]
+//           });
+//           res.send({ meals });
+//         } catch (err) {
+//           res.status(500).send({ message: 'Error fetching meals', error: err });
+//         }
+//       });
+
+
+    // Get meal by ID
+app.get("/api/meals/:id", async (req, res) => {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ message: "Invalid ID format" });
+              }
+        const query = {_id: new ObjectId(id)}
+        
+        try {
+          const meal = await mealsCollection.findOne(query);
+          if (!meal) {
+            return res.status(404).send({ message: "Meal not found" });
+          }
+          res.send(meal);
+        } catch (err) {
+          res.status(500).send({ message: err.message });
+        }
+      });
+      
+
     // merger get api======
-    app.get("/api/meals", verifyToken, async (req, res) => {
+    app.get("/api/meals", async (req, res) => {
       const {
         search,
         category,
@@ -327,6 +367,62 @@ async function run() {
       const result = await mealsCollection.insertOne(meals);
       res.send(result);
     });
+
+    // Update meal by ID
+  
+
+app.put("/api/meals/:id", async (req, res) => {
+      const { id } = req.params;
+      const { title, description, price, ingredients, category, image, distributorName, distributorEmail, rating, reviews_count, likes } = req.body;
+    
+      try {
+        const result = await mealsCollection.updateOne(
+          { _id: new ObjectId(id) }, // Convert id to ObjectId
+          {
+            $set: { // Fields to update
+              title,
+              description,
+              price,
+              ingredients,
+              category,
+              image,
+              distributorName,
+              distributorEmail,
+              rating,
+              reviews_count,
+              likes,
+            },
+          }
+        );
+    
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Meal not found" });
+        }
+    
+        res.send({ message: "Meal updated successfully" });
+      } catch (err) {
+        res.status(500).send({ message: err.message });
+      }
+    });
+
+
+    app.delete("/api/meals/:id", async (req, res) => {
+        const { id } = req.params;
+      
+        try {
+          const result = await mealsCollection.deleteOne({ _id: new ObjectId(id) });
+      
+          if (result.deletedCount === 0) {
+            return res.status(404).send({ message: "Meal not found" });
+          }
+      
+          res.status(204).send(); // No content, meal deleted successfully
+        } catch (err) {
+          res.status(500).send({ message: err.message });
+        }
+      });
+      
+    
 
     //     increase like==========
     //     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
@@ -901,6 +997,8 @@ app.get("/api/requested-meals/:email", async (req, res) => {
     });
 
 
+
+
 //     serve meals=======================
     app.get("/api/requested-meals", async (req, res) => {
         try {
@@ -956,6 +1054,9 @@ app.get("/api/requested-meals/:email", async (req, res) => {
       });
       
 
+
+
+
     // only premium user can like upcoming meals==============
     app.post("/api/meals/:id/like", async (req, res) => {
       const { userId, userType } = req.body; // Assume user data is passed in request
@@ -991,6 +1092,25 @@ app.get("/api/requested-meals/:email", async (req, res) => {
         res.status(500).send({ message: err.message });
       }
     });
+
+
+
+//     banner search==============
+app.get('/search', async (req, res) => {
+        const query = req.query.query;
+        try {
+          const meals =  mealsCollection.find({
+            $or: [
+              { title: new RegExp(query, 'i') },
+              { description: new RegExp(query, 'i') },
+              { category: new RegExp(query, 'i') },
+            ],
+          });
+          res.send(meals);
+        } catch (err) {
+          res.status(500).send('Error fetching meals');
+        }
+      });
 
     app.post("/api/jwt", async (req, res) => {
       console.log("request body", req.body);
