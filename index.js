@@ -29,6 +29,7 @@ app.use(morgan("dev"));
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token;
+//   console.log(token, "token verify")
 
   if (!token) {
     return res.status(401).send({ message: "unauthorized access" });
@@ -65,7 +66,6 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   },
 });
-
 
 async function run() {
   try {
@@ -139,7 +139,7 @@ async function run() {
     });
 
     //     user related api===================================
-    app.post("/api/users/:email", verifyToken, async (req, res) => {
+    app.post("/api/users/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email };
       const user = req.body;
@@ -202,29 +202,27 @@ async function run() {
       }
     });
 
-
-//
+    //
 
     // Get meal by ID
-app.get("/api/meals/:id", verifyToken, async (req, res) => {
-        const { id } = req.params;
+    app.get("/api/meals/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
 
-        if (!ObjectId.isValid(id)) {
-                return res.status(400).send({ message: "Invalid ID format" });
-              }
-        const query = {_id: new ObjectId(id)}
-        
-        try {
-          const meal = await mealsCollection.findOne(query);
-          if (!meal) {
-            return res.status(404).send({ message: "Meal not found" });
-          }
-          res.send(meal);
-        } catch (err) {
-          res.status(500).send({ message: err.message });
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid ID format" });
+      }
+      const query = { _id: new ObjectId(id) };
+
+      try {
+        const meal = await mealsCollection.findOne(query);
+        if (!meal) {
+          return res.status(404).send({ message: "Meal not found" });
         }
-      });
-      
+        res.send(meal);
+      } catch (err) {
+        res.status(500).send({ message: err.message });
+      }
+    });
 
     // merger get api======
     app.get("/api/meals", async (req, res) => {
@@ -272,8 +270,6 @@ app.get("/api/meals/:id", verifyToken, async (req, res) => {
       }
     });
 
-
-
     //     get meal details by id =================
 
     app.get("/api/meals/:id", async (req, res) => {
@@ -306,17 +302,29 @@ app.get("/api/meals/:id", verifyToken, async (req, res) => {
     });
 
     // Update meal by ID
-  
 
-app.put("/api/meals/:id",  verifyToken,async (req, res) => {
+    app.put("/api/meals/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
-      const { title, description, price, ingredients, category, image, distributorName, distributorEmail, rating, reviews_count, likes } = req.body;
-    
+      const {
+        title,
+        description,
+        price,
+        ingredients,
+        category,
+        image,
+        distributorName,
+        distributorEmail,
+        rating,
+        reviews_count,
+        likes,
+      } = req.body;
+
       try {
         const result = await mealsCollection.updateOne(
           { _id: new ObjectId(id) }, // Convert id to ObjectId
           {
-            $set: { // Fields to update
+            $set: {
+              // Fields to update
               title,
               description,
               price,
@@ -331,37 +339,35 @@ app.put("/api/meals/:id",  verifyToken,async (req, res) => {
             },
           }
         );
-    
+
         if (result.matchedCount === 0) {
           return res.status(404).send({ message: "Meal not found" });
         }
-    
+
         res.send({ message: "Meal updated successfully" });
       } catch (err) {
         res.status(500).send({ message: err.message });
       }
     });
 
-
     app.delete("/api/meals/:id", verifyToken, async (req, res) => {
-        const { id } = req.params;
-      
-        try {
-          const result = await mealsCollection.deleteOne({ _id: new ObjectId(id) });
-      
-          if (result.deletedCount === 0) {
-            return res.status(404).send({ message: "Meal not found" });
-          }
-      
-          res.status(204).send(); // No content, meal deleted successfully
-        } catch (err) {
-          res.status(500).send({ message: err.message });
-        }
-      });
-      
-    
+      const { id } = req.params;
 
-  
+      try {
+        const result = await mealsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ message: "Meal not found" });
+        }
+
+        res.status(204).send(); // No content, meal deleted successfully
+      } catch (err) {
+        res.status(500).send({ message: err.message });
+      }
+    });
+
     app.patch("/api/meals/:id/like", verifyToken, async (req, res) => {
       try {
         const id = req.params.id;
@@ -583,8 +589,6 @@ app.put("/api/meals/:id",  verifyToken,async (req, res) => {
       res.send(result);
     });
 
- 
-
     app.patch("/api/reviews/:id", verifyToken, async (req, res) => {
       const { id } = req.params; // This is the review ID
       const { comment, rating } = req.body;
@@ -671,74 +675,74 @@ app.put("/api/meals/:id",  verifyToken,async (req, res) => {
 
     //       request meals==============
 
-
     app.post("/api/request-meals/:id", verifyToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { email } = req.body; // Get meal ID and user email
 
-        try {
-            const { id } = req.params;
-            const { email } = req.body; // Get meal ID and user email
-    
-            // Validate ObjectId
-            if (!ObjectId.isValid(id)) {
-                return res.status(400).send({ error: "Invalid meal ID format." });
-            }
-    
-            // Find user by email
-            const requestUser = await usersCollection.findOne({ email });
-    
-            if (!requestUser) {
-                return res.status(404).send({ error: "User not found." });
-            }
-    
-            // Find meal by ID
-            const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
-    
-            if (!meal) {
-                return res.status(404).send({ message: "Meal not found." });
-            }
-    
-            // Create a new request object
-            const request = {
-                mealId: new ObjectId(meal._id) , // Store meal ID separately
-                title: meal.title,
-                category: meal.category,
-                image: meal.image,
-                description: meal.description,
-                likes: meal.likes,
-                reviews_count: meal.reviews_count,
-                status: "pending", // Request status
-                requestDate: new Date(), // Timestamp for the request
-                userId: requestUser._id, // Use the user's _id from database
-                email: requestUser.email, // Ensure email is included
-            };
-    
-            // Insert the meal request into the `requestedMealCollection`
-            const result = await requestedMealCollection.insertOne(request);
-            res.status(201).send({ message: "Meal request submitted successfully.", result });
-        } catch (error) {
-            console.error("Error submitting meal request:", error);
-            res.status(500).send({ message: "Failed to submit meal request." });
+        // Validate ObjectId
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid meal ID format." });
         }
-    });
-    ;
 
-app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
-    try {
+        // Find user by email
+        const requestUser = await usersCollection.findOne({ email });
+
+        if (!requestUser) {
+          return res.status(404).send({ error: "User not found." });
+        }
+
+        // Find meal by ID
+        const meal = await mealsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!meal) {
+          return res.status(404).send({ message: "Meal not found." });
+        }
+
+        // Create a new request object
+        const request = {
+          mealId: new ObjectId(meal._id), // Store meal ID separately
+          title: meal.title,
+          category: meal.category,
+          image: meal.image,
+          description: meal.description,
+          likes: meal.likes,
+          reviews_count: meal.reviews_count,
+          status: "pending", // Request status
+          requestDate: new Date(), // Timestamp for the request
+          userId: requestUser._id, // Use the user's _id from database
+          email: requestUser.email, // Ensure email is included
+        };
+
+        // Insert the meal request into the `requestedMealCollection`
+        const result = await requestedMealCollection.insertOne(request);
+        res
+          .status(201)
+          .send({ message: "Meal request submitted successfully.", result });
+      } catch (error) {
+        console.error("Error submitting meal request:", error);
+        res.status(500).send({ message: "Failed to submit meal request." });
+      }
+    });
+    app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
+      try {
         const { email } = req.params;
         const user = await usersCollection.findOne({ email });
 
         if (!user) {
-            return res.status(404).send({ error: "User not found." });
+          return res.status(404).send({ error: "User not found." });
         }
 
-        const requestedMeals = await requestedMealCollection.find({ userId: user._id }).toArray();
+        const requestedMeals = await requestedMealCollection
+          .find({ userId: user._id })
+          .toArray();
 
         res.status(200).send(requestedMeals);
-    } catch (error) {
+      } catch (error) {
         console.error("Error fetching requested meals:", error);
         res.status(500).send({ message: "Failed to fetch requested meals." });
-    }
-});
+      }
+    });
 
     app.delete("/api/meals/requests/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
@@ -815,7 +819,7 @@ app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
     });
 
     // created upcoming-meals============================
-    app.post("/api/upcoming-meals",  verifyToken, async (req, res) => {
+    app.post("/api/upcoming-meals", verifyToken, async (req, res) => {
       try {
         const newMeal = {
           title: req.body.title,
@@ -834,66 +838,62 @@ app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
       }
     });
 
-
-
-
-//     serve meals=======================
+    //     serve meals=======================
     app.get("/api/requested-meals", verifyToken, async (req, res) => {
-        try {
-          const { search } = req.query; // Get search query (email or username)
-      
-          // Construct the search query to filter meals based on email or username
-          const filter = search
-            ? {
-                $or: [
-                  { email: { $regex: search, $options: "i" } },
-                  { "userId.name": { $regex: search, $options: "i" } }, // Assuming the user name is in the userId object
-                ],
-              }
-            : {};
-      
-          // Fetch meals with optional filter
-          const requestedMeals = await requestedMealCollection.find(filter).toArray();
-      
-          res.status(200).send(requestedMeals);
-        } catch (error) {
-          console.error("Error fetching requested meals:", error);
-          res.status(500).send({ message: "Failed to fetch requested meals." });
+      try {
+        const { search } = req.query; // Get search query (email or username)
+
+        // Construct the search query to filter meals based on email or username
+        const filter = search
+          ? {
+              $or: [
+                { email: { $regex: search, $options: "i" } },
+                { "userId.name": { $regex: search, $options: "i" } }, // Assuming the user name is in the userId object
+              ],
+            }
+          : {};
+
+        // Fetch meals with optional filter
+        const requestedMeals = await requestedMealCollection
+          .find(filter)
+          .toArray();
+
+        res.status(200).send(requestedMeals);
+      } catch (error) {
+        console.error("Error fetching requested meals:", error);
+        res.status(500).send({ message: "Failed to fetch requested meals." });
+      }
+    });
+
+    //       serve meal status update==============
+    app.patch("/api/meals/requests/:id", verifyToken, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        // Validate ObjectId format
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid meal ID format." });
         }
-      });
 
+        // Find the meal by ID and update its status to 'delivered'
+        const result = await requestedMealCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "delivered" } }
+        );
 
-//       serve meal status update==============
-      app.patch("/api/meals/requests/:id", verifyToken, async (req, res) => {
-        try {
-          const { id } = req.params;
-          const { status } = req.body;
-      
-          // Validate ObjectId format
-          if (!ObjectId.isValid(id)) {
-            return res.status(400).send({ error: "Invalid meal ID format." });
-          }
-      
-          // Find the meal by ID and update its status to 'delivered'
-          const result = await requestedMealCollection.updateOne(
-            { _id: new ObjectId(id) },
-            { $set: { status: 'delivered' } }
-          );
-      
-          if (result.modifiedCount === 0) {
-            return res.status(404).send({ message: "Meal not found or already delivered." });
-          }
-      
-          res.status(200).send({ message: "Meal status updated to delivered." });
-        } catch (error) {
-          console.error("Error updating meal status:", error);
-          res.status(500).send({ message: "Failed to update meal status." });
+        if (result.modifiedCount === 0) {
+          return res
+            .status(404)
+            .send({ message: "Meal not found or already delivered." });
         }
-      });
-      
 
-
-
+        res.status(200).send({ message: "Meal status updated to delivered." });
+      } catch (error) {
+        console.error("Error updating meal status:", error);
+        res.status(500).send({ message: "Failed to update meal status." });
+      }
+    });
 
     // only premium user can like upcoming meals==============
     app.post("/api/meals/:id/like", verifyToken, async (req, res) => {
@@ -931,32 +931,37 @@ app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
       }
     });
 
-
-
-//     banner search==============
-app.get('/search', async (req, res) => {
-        const query = req.query.query;
-        try {
-          const meals =  mealsCollection.find({
-            $or: [
-              { title: new RegExp(query, 'i') },
-              { description: new RegExp(query, 'i') },
-              { category: new RegExp(query, 'i') },
-            ],
-          });
-          res.send(meals);
-        } catch (err) {
-          res.status(500).send('Error fetching meals');
-        }
-      });
+    //     banner search==============
+    app.get("/search", async (req, res) => {
+      const query = req.query.query;
+      try {
+        const meals = mealsCollection.find({
+          $or: [
+            { title: new RegExp(query, "i") },
+            { description: new RegExp(query, "i") },
+            { category: new RegExp(query, "i") },
+          ],
+        });
+        res.send(meals);
+      } catch (err) {
+        res.status(500).send("Error fetching meals");
+      }
+    });
 
     app.post("/api/jwt", async (req, res) => {
       console.log("request body", req.body);
-      const email = req.body;
+      const {email} = req.body;
 
-      const token = jwt.sign(email, process.env.ACCESS_TOKEN_SECRET, {
+//       if (!email) {
+//         return res.status(400).send({ message: "Email is required" });
+//       }
+
+      const token = jwt.sign({email}, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
+
+//       console.log("Generated JWT:", token);
+
       res
         .cookie("token", token, {
           httpOnly: true,
@@ -1018,8 +1023,7 @@ app.get('/search', async (req, res) => {
     //       }
     //     });
   } finally {
-    // Ensures that the client will close when you finish/error
-    //     await client.close();
+
   }
 }
 run().catch(console.dir);
