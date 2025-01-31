@@ -699,6 +699,15 @@ async function run() {
           return res.status(404).send({ message: "Meal not found." });
         }
 
+        const existingRequest = await requestedMealCollection.findOne({
+                mealId: new ObjectId(id),
+                userId: requestUser._id
+        })
+
+        if(existingRequest) {
+                return res.status(400).send({message: 'You have already requested this meal'})
+        }
+
         // Create a new request object
         const request = {
           mealId: new ObjectId(meal._id), // Store meal ID separately
@@ -724,6 +733,8 @@ async function run() {
         res.status(500).send({ message: "Failed to submit meal request." });
       }
     });
+
+
     app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
       try {
         const { email } = req.params;
@@ -949,7 +960,7 @@ async function run() {
     });
 
     app.post("/api/jwt", async (req, res) => {
-      console.log("request body", req.body);
+//       console.log("request body", req.body);
       const {email} = req.body;
 
 //       if (!email) {
