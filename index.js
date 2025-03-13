@@ -3,6 +3,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 7000;
 
@@ -28,7 +29,7 @@ app.use(morgan("dev"));
 
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
+  const token = req.cookies?.token || req.headers?.authorization?.split(' ')[1]
 //   console.log(token, "token verify")
 
   if (!token) {
@@ -137,6 +138,34 @@ async function run() {
         res.status(500).send({ message: "failed to fetch user profile" });
       }
     });
+
+    app.put("/api/user/profile", verifyToken, async (req, res) => {
+        try {
+            const { email } = req.user; // Get user email from token
+            const { name, image } = req.body; // Get updated fields from request body
+            const userEmail = await usersCollection.findOne({email})
+    
+            // Update the user document in the database
+            const updatedUser = await usersCollection.updateOne( userEmail,
+                { email }, // Find user by email
+                { $set: { name, image } }, // Update fields
+                { returnDocument: "after" } // Return the updated document
+            );
+    
+            // Check if the user was found and updated
+            if (!updatedUser.value) {
+                return res.status(404).send({ message: "User not found" });
+            }
+    
+            res.send({ message: "Profile updated successfully!", user: updatedUser.value });
+    
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            res.status(500).send({ message: "Failed to update profile" });
+        }
+    });
+    
+      
 
     //     user related api===================================
     app.post("/api/users/:email", async (req, res) => {
@@ -997,20 +1026,21 @@ async function run() {
     });
 
     //     stripe intent============
-    //     app.post("/api/payment-intent", async (req, res) => {
-    //       const { amount } = req.body;
-    //       try {
-    //         const paymentIntent = await stripe.paymentIntents.create({
-    //           amount, // Amount in cents
-    //           currency: "usd",
-    //           payment_method_types: ["card"],
-    //         });
-    //         res.send({ clientSecret: paymentIntent.client_secret });
-    //       } catch (error) {
-    //         console.error("Error creating payment intent:", error.message);
-    //         res.status(500).send({ message: "Failed to create payment intent." });
-    //       }
-    //     });
+        app.post("/api/payment-intent", async (req, res) => {
+          const { price } = req.body;
+          const amount = parseInt(price * 100)
+          try {
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amount, // Amount in cents
+              currency: "usd",
+              payment_method_types: ["card"],
+            });
+            res.send({ clientSecret: paymentIntent.client_secret });
+          } catch (error) {
+            console.error("Error creating payment intent:", error.message);
+            res.status(500).send({ message: "Failed to create payment intent." });
+          }
+        });
 
     //     //       save payment details====
     //     app.post("/api/save-payment", async (req, res) => {
