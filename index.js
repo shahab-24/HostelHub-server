@@ -30,7 +30,7 @@ app.use(morgan("dev"));
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token || req.headers?.authorization?.split(' ')[1]
-//   console.log(token, "token verify")
+  console.log(token, "token verify")
 
   if (!token) {
     return res.status(401).send({ message: "unauthorized access" });
@@ -1029,9 +1029,10 @@ async function run() {
         app.post("/api/payment-intent", async (req, res) => {
           const { price } = req.body;
           const amount = parseInt(price * 100)
+          console.log(amount)
           try {
             const paymentIntent = await stripe.paymentIntents.create({
-              amount: amount, // Amount in cents
+              amount: amount,
               currency: "usd",
               payment_method_types: ["card"],
             });
