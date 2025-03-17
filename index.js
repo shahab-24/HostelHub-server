@@ -3,7 +3,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT || 7000;
 
@@ -16,35 +16,58 @@ const corsOptions = {
     "http://localhost:5174",
     "https://hostelhub-f7524.web.app",
   ],
-  credentials: true, // Allow cookies and credentials
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
-  allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   optionSuccessStatus: 200,
 };
 
 app.use(express.json());
-app.use(cors(corsOptions));
 app.use(cookieParser());
+app.use(cors(corsOptions));
+
 app.use(morgan("dev"));
 
 // verifyToken=============================================================
-const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token || req.headers?.authorization?.split(' ')[1]
-  console.log(token, "token verify")
+// const verifyToken = async (req, res, next) => {
+//   // console.log("Cookies from client:", req.cookies);
+//   const authHeader = req.headers?.authorization;
+//   const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
+//     console.log("Received Token:", token);
+
+//   if (!token) {
+//     return res.status(401).send({ message: "unauthorized access:" });
+//   }
+
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       console.log("Token Verification Error:", err);
+//       return res.status(401).send({ message: "unauthorized access" });
+//     }
+//     req.user = decoded;
+//     next();
+//   });
+// };
+
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
 
   if (!token) {
-    return res.status(401).send({ message: "unauthorized access" });
+    return res.status(401).json({ message: "Unauthorized access" });
   }
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      console.log(err);
-      return res.status(401).send({ message: "unauthorized access" });
+      return res.status(401).json({ message: "Unauthorized access" });
     }
     req.user = decoded;
     next();
   });
 };
+
+
 
 // Middleware to verify user subscription
 const verifySubscription = (req, res, next) => {
@@ -140,32 +163,33 @@ async function run() {
     });
 
     app.put("/api/user/profile", verifyToken, async (req, res) => {
-        try {
-            const { email } = req.user; // Get user email from token
-            const { name, image } = req.body; // Get updated fields from request body
-            const userEmail = await usersCollection.findOne({email})
-    
-            // Update the user document in the database
-            const updatedUser = await usersCollection.updateOne( userEmail,
-                { email }, // Find user by email
-                { $set: { name, image } }, // Update fields
-                { returnDocument: "after" } // Return the updated document
-            );
-    
-            // Check if the user was found and updated
-            if (!updatedUser.value) {
-                return res.status(404).send({ message: "User not found" });
-            }
-    
-            res.send({ message: "Profile updated successfully!", user: updatedUser.value });
-    
-        } catch (error) {
-            console.error("Error updating profile:", error);
-            res.status(500).send({ message: "Failed to update profile" });
+      try {
+        const { email } = req.user; // Get user email from token
+        const { name, image } = req.body; // Get updated fields from request body
+        const userEmail = await usersCollection.findOne({ email });
+
+        // Update the user document in the database
+        const updatedUser = await usersCollection.updateOne(
+          userEmail,
+          { email }, // Find user by email
+          { $set: { name, image } }, // Update fields
+          { returnDocument: "after" } // Return the updated document
+        );
+
+        // Check if the user was found and updated
+        if (!updatedUser.value) {
+          return res.status(404).send({ message: "User not found" });
         }
+
+        res.send({
+          message: "Profile updated successfully!",
+          user: updatedUser.value,
+        });
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        res.status(500).send({ message: "Failed to update profile" });
+      }
     });
-    
-      
 
     //     user related api===================================
     app.post("/api/users/:email", async (req, res) => {
@@ -210,6 +234,19 @@ async function run() {
         console.error("Error fetching users:", err); // Log the error on the server
         res.status(500).send({ message: "Error fetching users" }); // Ensure a JSON response
       }
+    });
+
+    //       get users ==============================
+    app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      console.log("Fetching role for:", email);
+
+      const result = await usersCollection.findOne({ email });
+      if (!result) {
+        return res.status(404).json({ message: "User not found", role: null });
+    }
+
+      res.send({ role: result?.role });
     });
 
     // Update user role to 'admin'
@@ -729,12 +766,14 @@ async function run() {
         }
 
         const existingRequest = await requestedMealCollection.findOne({
-                mealId: new ObjectId(id),
-                userId: requestUser._id
-        })
+          mealId: new ObjectId(id),
+          userId: requestUser._id,
+        });
 
-        if(existingRequest) {
-                return res.status(400).send({message: 'You have already requested this meal'})
+        if (existingRequest) {
+          return res
+            .status(400)
+            .send({ message: "You have already requested this meal" });
         }
 
         // Create a new request object
@@ -762,7 +801,6 @@ async function run() {
         res.status(500).send({ message: "Failed to submit meal request." });
       }
     });
-
 
     app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
       try {
@@ -819,14 +857,6 @@ async function run() {
           .status(500)
           .send({ message: "Failed to calculate average rating." });
       }
-    });
-
-    //       get users ==============================
-    app.get("/api/users/role/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-
-      const result = await usersCollection.findOne({ email });
-      res.send({ role: result?.role });
     });
 
     // get upcoming meals and sorted by likes===============
@@ -988,60 +1018,23 @@ async function run() {
       }
     });
 
-    app.post("/api/jwt", async (req, res) => {
-//       console.log("request body", req.body);
-      const {email} = req.body;
-
-//       if (!email) {
-//         return res.status(400).send({ message: "Email is required" });
-//       }
-
-      const token = jwt.sign({email}, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
-      });
-
-//       console.log("Generated JWT:", token);
-
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-        })
-        .send({ success: true });
-    });
-
-    app.get("/api/logout", async (req, res) => {
+    //     stripe intent============
+    app.post("/api/payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount);
       try {
-        res
-          .clearCookie("token", {
-            maxAge: 0,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-          })
-          .send({ success: true });
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+        res.send({ clientSecret: paymentIntent.client_secret });
       } catch (error) {
-        res.status(500).send(error);
+        console.error("Error creating payment intent:", error.message);
+        res.status(500).send({ message: "Failed to create payment intent." });
       }
     });
-
-    //     stripe intent============
-        app.post("/api/payment-intent", async (req, res) => {
-          const { price } = req.body;
-          const amount = parseInt(price * 100)
-          console.log(amount)
-          try {
-            const paymentIntent = await stripe.paymentIntents.create({
-              amount: amount,
-              currency: "usd",
-              payment_method_types: ["card"],
-            });
-            res.send({ clientSecret: paymentIntent.client_secret });
-          } catch (error) {
-            console.error("Error creating payment intent:", error.message);
-            res.status(500).send({ message: "Failed to create payment intent." });
-          }
-        });
 
     //     //       save payment details====
     //     app.post("/api/save-payment", async (req, res) => {
@@ -1064,8 +1057,61 @@ async function run() {
     //         res.status(500).send({ message: "Failed to save payment details." });
     //       }
     //     });
-  } finally {
 
+//     app.post("/api/jwt", async (req, res) => {
+//       //       console.log("request body", req.body);
+//       const { email } = req.body;
+
+//       const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
+//         expiresIn: "1h",
+//       });
+//       //       console.log("Generated JWT:", token);
+//       res
+//         .cookie("token", token, {
+//           httpOnly: true,
+//           secure: false,
+//           //   secure: process.env.NODE_ENV === "production",
+//           sameSite: "none",
+//           // sameSite: "lax",
+//           //   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+//           maxAge: 3600000,
+//         })
+//         .send({ success: true, token, message: "login successful" });
+//     });
+
+
+app.post("/api/jwt", async (req, res) => {
+  const { email } = req.body;
+
+  const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
+    expiresIn: "1h",
+  });
+
+  res
+    .cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 3600000,
+    })
+    .json({ success: true, token, message: "Login successful" });
+});
+
+
+    app.get("/api/logout", async (req, res) => {
+      try {
+        res
+          .clearCookie("token", {
+            maxAge: 0,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+          })
+          .send({ success: true });
+      } catch (error) {
+        res.status(500).send(error);
+      }
+    });
+  } finally {
   }
 }
 run().catch(console.dir);
