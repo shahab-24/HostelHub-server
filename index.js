@@ -29,43 +29,43 @@ app.use(cors(corsOptions));
 app.use(morgan("dev"));
 
 // verifyToken=============================================================
-// const verifyToken = async (req, res, next) => {
-//   // console.log("Cookies from client:", req.cookies);
-//   const authHeader = req.headers?.authorization;
-//   const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
-//     console.log("Received Token:", token);
-
-//   if (!token) {
-//     return res.status(401).send({ message: "unauthorized access:" });
-//   }
-
-//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-//     if (err) {
-//       console.log("Token Verification Error:", err);
-//       return res.status(401).send({ message: "unauthorized access" });
-//     }
-//     req.user = decoded;
-//     next();
-//   });
-// };
-
-
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+const verifyToken = async (req, res, next) => {
+  // console.log("Cookies from client:", req.cookies);
+  const authHeader = req.headers?.authorization;
   const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
+    console.log("Received Token:", token);
 
   if (!token) {
-    return res.status(401).json({ message: "Unauthorized access" });
+    return res.status(401).send({ message: "unauthorized access, token not found" });
   }
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(401).json({ message: "Unauthorized access" });
+      console.log("Token Verification Error:", err);
+      return res.status(401).send({ message: "unauthorized access" });
     }
     req.user = decoded;
     next();
   });
 };
+
+
+// const verifyToken = (req, res, next) => {
+//   const authHeader = req.headers.authorization;
+//   const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
+
+//   if (!token) {
+//     return res.status(401).json({ message: "Unauthorized access" });
+//   }
+
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       return res.status(401).json({ message: "Unauthorized access" });
+//     }
+//     req.user = decoded;
+//     next();
+//   });
+// };
 
 
 
@@ -98,12 +98,12 @@ async function run() {
     const reviewsCollection = client.db("HostelHub").collection("reviews");
 
     const packagesCollection = client.db("HostelHub").collection("packages");
-    const requestedMealCollection = client
-      .db("HostelHub")
-      .collection("requestedMeal");
+    const requestedMealCollection = client.db("HostelHub")
+.collection("requestedMeal");
+const paymentsCollection = client.db('HostelHub').collection('payments')
 
     //     get admin profile with added meals count=======
-    app.get("/api/admin/profile", verifyToken, async (req, res) => {
+    app.get("/api/admin/profile", async (req, res) => {
       try {
         const { email } = req.user;
         const admin = await usersCollection.findOne({ email, role: "admin" });
@@ -132,7 +132,7 @@ async function run() {
       }
     });
 
-    app.get("/api/user/profile", verifyToken, async (req, res) => {
+    app.get("/api/user/profile",  async (req, res) => {
       try {
         const { email } = req.user;
         const user = await usersCollection.findOne({ email, role: "user" });
@@ -162,7 +162,7 @@ async function run() {
       }
     });
 
-    app.put("/api/user/profile", verifyToken, async (req, res) => {
+    app.put("/api/user/profile",  async (req, res) => {
       try {
         const { email } = req.user; // Get user email from token
         const { name, image } = req.body; // Get updated fields from request body
@@ -210,7 +210,7 @@ async function run() {
     });
 
     // get all users and search users
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users",  async (req, res) => {
       const { search } = req.query;
       const query = search
         ? {
@@ -237,7 +237,7 @@ async function run() {
     });
 
     //       get users ==============================
-    app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+    app.get("/api/users/role/:email", async (req, res) => {
       const email = req.params.email;
       console.log("Fetching role for:", email);
 
@@ -250,7 +250,7 @@ async function run() {
     });
 
     // Update user role to 'admin'
-    app.patch("/api/users/:id", verifyToken, async (req, res) => {
+    app.patch("/api/users/:id",  async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const update = { $set: { role: "admin" } };
@@ -271,7 +271,7 @@ async function run() {
     //
 
     // Get meal by ID
-    app.get("/api/meals/:id", verifyToken, async (req, res) => {
+    app.get("/api/meals/:id",  async (req, res) => {
       const { id } = req.params;
 
       if (!ObjectId.isValid(id)) {
@@ -1037,26 +1037,22 @@ async function run() {
     });
 
     //     //       save payment details====
-    //     app.post("/api/save-payment", async (req, res) => {
-    //       const { packageName, price, transactionId } = req.body;
-    //       try {
-    //         await paymentsCollection.insertOne({
-    //           packageName,
-    //           price,
-    //           transactionId,
-    //           timestamp: new Date(),
-    //         });
-    //         // Update user's package (assign badge, etc.)
-    //         await usersCollection.updateOne(
-    //           { email: req.user.email }, // Replace with actual user identification
-    //           { $set: { packageName, badge: packageName.toUpperCase() } }
-    //         );
-    //         res.send({ message: "Payment saved successfully." });
-    //       } catch (error) {
-    //         console.error("Error saving payment:", error.message);
-    //         res.status(500).send({ message: "Failed to save payment details." });
-    //       }
-    //     });
+        app.post("/api/save-payment", async (req, res) => {
+          const payment = req.body;
+          console.log(payment)
+          try {
+            await paymentsCollection.insertOne(payment);
+            // Update user's package (assign badge, etc.)
+        //     await usersCollection.updateOne(
+        //       { email: req.user.email }, // Replace with actual user identification
+        //       { $set: { packageName, badge: packageName.toUpperCase() } }
+        //     );
+            res.send({ message: "Payment saved successfully." });
+          } catch (error) {
+            console.error("Error saving payment:", error.message);
+            res.status(500).send({ message: "Failed to save payment details." });
+          }
+        });
 
 //     app.post("/api/jwt", async (req, res) => {
 //       //       console.log("request body", req.body);
@@ -1094,7 +1090,7 @@ app.post("/api/jwt", async (req, res) => {
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 3600000,
     })
-    .json({ success: true, token, message: "Login successful" });
+    .send({ success: true, token, message: "Login successful" });
 });
 
 
