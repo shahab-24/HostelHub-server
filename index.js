@@ -31,12 +31,14 @@ app.use(morgan("dev"));
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
   // console.log("Cookies from client:", req.cookies);
-  const authHeader = req.headers?.authorization;
-  const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
-    console.log("Received Token:", token);
+  const authHeader = req.headers?.authorization.split(" ")[1]
+  const token = req.cookies?.token || authHeader;
+//   console.log("Received Token:", token);
 
   if (!token) {
-    return res.status(401).send({ message: "unauthorized access, token not found" });
+    return res
+      .status(401)
+      .send({ message: "unauthorized access, token not found" });
   }
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
@@ -48,7 +50,41 @@ const verifyToken = async (req, res, next) => {
     next();
   });
 };
+// const verifyToken = async (req, res, next) => {
+//         try {
+//             const token = req.cookies.token; 
+//             console.log(token, 'token from client in server')
+//             if (!token) {
+//                 return res.status(401).send({ error: "Unauthorized, No token provided" });
+//             }
+    
+//             const decodedToken = await admin.auth().verifyIdToken(token);
+//             req.user = decodedToken;
+//             next();
+//         } catch (error) {
+//             return res.status(401).send({ error: "Invalid or expired token" });
+//         }
+//     };
+    
+// const verifyToken = (req, res, next) => {
+//   const token = req.cookies?.token; // Use only cookie-based authentication
 
+//   if (!token) {
+//     return res.status(401).send({ message: "Unauthorized: No token found" });
+//   }
+
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       console.error("Token verification failed:", err);
+//       return res.status(403).send({ message: "Forbidden: Invalid token" });
+//     }
+
+//     req.user = decoded; // Store user info in request object
+//     next();
+//   });
+// };
+
+    
 
 // const verifyToken = (req, res, next) => {
 //   const authHeader = req.headers.authorization;
@@ -66,8 +102,6 @@ const verifyToken = async (req, res, next) => {
 //     next();
 //   });
 // };
-
-
 
 // Middleware to verify user subscription
 const verifySubscription = (req, res, next) => {
@@ -98,12 +132,13 @@ async function run() {
     const reviewsCollection = client.db("HostelHub").collection("reviews");
 
     const packagesCollection = client.db("HostelHub").collection("packages");
-    const requestedMealCollection = client.db("HostelHub")
-.collection("requestedMeal");
-const paymentsCollection = client.db('HostelHub').collection('payments')
+    const requestedMealCollection = client
+      .db("HostelHub")
+      .collection("requestedMeal");
+    const paymentsCollection = client.db("HostelHub").collection("payments");
 
     //     get admin profile with added meals count=======
-    app.get("/api/admin/profile", async (req, res) => {
+    app.get("/api/admin/profile", verifyToken, async (req, res) => {
       try {
         const { email } = req.user;
         const admin = await usersCollection.findOne({ email, role: "admin" });
@@ -132,7 +167,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
       }
     });
 
-    app.get("/api/user/profile",  async (req, res) => {
+    app.get("/api/user/profile",verifyToken,  async (req, res) => {
       try {
         const { email } = req.user;
         const user = await usersCollection.findOne({ email, role: "user" });
@@ -162,7 +197,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
       }
     });
 
-    app.put("/api/user/profile",  async (req, res) => {
+    app.put("/api/user/profile", async (req, res) => {
       try {
         const { email } = req.user; // Get user email from token
         const { name, image } = req.body; // Get updated fields from request body
@@ -210,7 +245,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     // get all users and search users
-    app.get("/users",  async (req, res) => {
+    app.get("/users", async (req, res) => {
       const { search } = req.query;
       const query = search
         ? {
@@ -237,20 +272,35 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     //       get users ==============================
-    app.get("/api/users/role/:email", async (req, res) => {
-      const email = req.params.email;
-      console.log("Fetching role for:", email);
+//     app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+//       const email = req.params.email;
+//       console.log("Fetching role for:", email);
 
-      const result = await usersCollection.findOne({ email });
-      if (!result) {
-        return res.status(404).json({ message: "User not found", role: null });
-    }
+//       const result = await usersCollection.findOne({ email });
+//       if (!result) {
+//         return res.status(404).json({ message: "User not found", role: null });
+//       }
 
-      res.send({ role: result?.role });
+//       res.send({ role: result?.role });
+//     });
+app.get("/api/users/role", verifyToken, async (req, res) => {
+        // console.log('user role')
+        if (!req.user || !req.user.email) {
+            return res.status(400).send({ error: "Invalid user data" });
+        }
+        const email = req.user.email;
+        // const email = req.body;
+        try {
+            const user = await usersCollection.findOne({ email });
+            res.send({ role: user?.role || "user" });
+        } catch (error) {
+            res.status(500).send({ error: "Server error while fetching role" });
+        }
     });
+    
 
     // Update user role to 'admin'
-    app.patch("/api/users/:id",  async (req, res) => {
+    app.patch("/api/users/:id", async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const update = { $set: { role: "admin" } };
@@ -271,7 +321,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     //
 
     // Get meal by ID
-    app.get("/api/meals/:id",  async (req, res) => {
+    app.get("/api/meals/:id", async (req, res) => {
       const { id } = req.params;
 
       if (!ObjectId.isValid(id)) {
@@ -741,7 +791,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
 
     //       request meals==============
 
-    app.post("/api/request-meals/:id", verifyToken, async (req, res) => {
+    app.post("/api/request-meals/:id",  async (req, res) => {
       try {
         const { id } = req.params;
         const { email } = req.body; // Get meal ID and user email
@@ -802,7 +852,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
       }
     });
 
-    app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
+    app.get("/api/requested-meals/:email",  async (req, res) => {
       try {
         const { email } = req.params;
         const user = await usersCollection.findOne({ email });
@@ -860,7 +910,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     // get upcoming meals and sorted by likes===============
-    app.get("/api/upcoming-meals", verifyToken, async (req, res) => {
+    app.get("/api/upcoming-meals",  async (req, res) => {
       try {
         const meals = await mealsCollection
           .find({ status: "upcoming" })
@@ -889,7 +939,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     // created upcoming-meals============================
-    app.post("/api/upcoming-meals", verifyToken, async (req, res) => {
+    app.post("/api/upcoming-meals",  async (req, res) => {
       try {
         const newMeal = {
           title: req.body.title,
@@ -909,7 +959,7 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     //     serve meals=======================
-    app.get("/api/requested-meals", verifyToken, async (req, res) => {
+    app.get("/api/requested-meals",  async (req, res) => {
       try {
         const { search } = req.query; // Get search query (email or username)
 
@@ -1037,62 +1087,82 @@ const paymentsCollection = client.db('HostelHub').collection('payments')
     });
 
     //     //       save payment details====
-        app.post("/api/save-payment", async (req, res) => {
-          const payment = req.body;
-          console.log(payment)
-          try {
-            await paymentsCollection.insertOne(payment);
-            // Update user's package (assign badge, etc.)
-        //     await usersCollection.updateOne(
-        //       { email: req.user.email }, // Replace with actual user identification
-        //       { $set: { packageName, badge: packageName.toUpperCase() } }
-        //     );
-            res.send({ message: "Payment saved successfully." });
-          } catch (error) {
-            console.error("Error saving payment:", error.message);
-            res.status(500).send({ message: "Failed to save payment details." });
-          }
+    app.post("/api/save-payment", async (req, res) => {
+      const payment = req.body;
+      console.log(payment);
+      try {
+        const paymentResult = await paymentsCollection.insertOne(payment);
+        //     Update user's package (assign badge, etc.)
+        const userResult = await usersCollection.updateOne(
+          { email: payment.email }, // Replace with actual user identification
+          { $set: { badge: payment.badge.toUpperCase() } }
+        );
+        res.send({
+                paymentResult,
+          userResult,
+          message: "Payment saved successfully.",
         });
-
-//     app.post("/api/jwt", async (req, res) => {
-//       //       console.log("request body", req.body);
-//       const { email } = req.body;
-
-//       const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
-//         expiresIn: "1h",
-//       });
-//       //       console.log("Generated JWT:", token);
-//       res
-//         .cookie("token", token, {
-//           httpOnly: true,
-//           secure: false,
-//           //   secure: process.env.NODE_ENV === "production",
-//           sameSite: "none",
-//           // sameSite: "lax",
-//           //   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-//           maxAge: 3600000,
-//         })
-//         .send({ success: true, token, message: "login successful" });
-//     });
+      } catch (error) {
+        console.error("Error saving payment:", error.message);
+        res.status(500).send({ message: "Failed to save payment details." });
+      }
+    });
 
 
-app.post("/api/jwt", async (req, res) => {
-  const { email } = req.body;
+    app.get("/dashboard/payment-history", async (req,res) => {
+        const email = req.query?.email;
+        if (!email) {
+                return res.status(400).send({ message: "Email is required" });
+              }
 
-  const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: "1h",
-  });
-
-  res
-    .cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 3600000,
+              try {
+                const payments = await paymentsCollection.find({email}).sort({date: -1}).toArray()
+                res.send({data:payments})
+                
+            } catch (error) {
+                res.status(500).send({message: "failed to fetch payments", error})
+                
+            }
     })
-    .send({ success: true, token, message: "Login successful" });
-});
+    
 
+    //     app.post("/api/jwt", async (req, res) => {
+    //       //       console.log("request body", req.body);
+    //       const { email } = req.body;
+
+    //       const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
+    //         expiresIn: "1h",
+    //       });
+    //       //       console.log("Generated JWT:", token);
+    //       res
+    //         .cookie("token", token, {
+    //           httpOnly: true,
+    //           secure: false,
+    //           //   secure: process.env.NODE_ENV === "production",
+    //           sameSite: "none",
+    //           // sameSite: "lax",
+    //           //   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+    //           maxAge: 3600000,
+    //         })
+    //         .send({ success: true, token, message: "login successful" });
+    //     });
+
+    app.post("/api/jwt", async (req, res) => {
+      const { email } = req.body;
+
+      const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+          maxAge: 3600000,
+        })
+        .send({ success: true, token, message: "Login successful" });
+    });
 
     app.get("/api/logout", async (req, res) => {
       try {
