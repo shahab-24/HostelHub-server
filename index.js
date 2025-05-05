@@ -30,10 +30,11 @@ app.use(morgan("dev"));
 
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
-  // console.log("Cookies from client:", req.cookies);
-  const authHeader = req.headers?.authorization.split(" ")[1]
-  const token = req.cookies?.token || authHeader;
-//   console.log("Received Token:", token);
+//   console.log("Cookies from client:", req.cookies);
+  const authHeader = req.headers?.authorization;
+//   const token = req.cookies?.token || authHeader
+const token = authHeader?.split(" ")[1]
+//     console.log("Received Token:", token);
 
   if (!token) {
     return res
@@ -50,58 +51,7 @@ const verifyToken = async (req, res, next) => {
     next();
   });
 };
-// const verifyToken = async (req, res, next) => {
-//         try {
-//             const token = req.cookies.token; 
-//             console.log(token, 'token from client in server')
-//             if (!token) {
-//                 return res.status(401).send({ error: "Unauthorized, No token provided" });
-//             }
-    
-//             const decodedToken = await admin.auth().verifyIdToken(token);
-//             req.user = decodedToken;
-//             next();
-//         } catch (error) {
-//             return res.status(401).send({ error: "Invalid or expired token" });
-//         }
-//     };
-    
-// const verifyToken = (req, res, next) => {
-//   const token = req.cookies?.token; // Use only cookie-based authentication
 
-//   if (!token) {
-//     return res.status(401).send({ message: "Unauthorized: No token found" });
-//   }
-
-//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-//     if (err) {
-//       console.error("Token verification failed:", err);
-//       return res.status(403).send({ message: "Forbidden: Invalid token" });
-//     }
-
-//     req.user = decoded; // Store user info in request object
-//     next();
-//   });
-// };
-
-    
-
-// const verifyToken = (req, res, next) => {
-//   const authHeader = req.headers.authorization;
-//   const token = req.cookies?.token || (authHeader && authHeader.split(" ")[1]);
-
-//   if (!token) {
-//     return res.status(401).json({ message: "Unauthorized access" });
-//   }
-
-//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-//     if (err) {
-//       return res.status(401).json({ message: "Unauthorized access" });
-//     }
-//     req.user = decoded;
-//     next();
-//   });
-// };
 
 // Middleware to verify user subscription
 const verifySubscription = (req, res, next) => {
@@ -128,6 +78,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     const usersCollection = client.db("HostelHub").collection("users");
+    
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
 
@@ -167,9 +118,9 @@ async function run() {
       }
     });
 
-    app.get("/api/user/profile",verifyToken,  async (req, res) => {
+    app.get("/api/user/profile", verifyToken, async (req, res) => {
       try {
-        const { email } = req.user;
+        const  {email}  = req.user;
         const user = await usersCollection.findOne({ email, role: "user" });
 
         if (!user) {
@@ -197,18 +148,17 @@ async function run() {
       }
     });
 
-    app.put("/api/user/profile", async (req, res) => {
+    app.put("/api/user/profile", verifyToken, async (req, res) => {
       try {
-        const { email } = req.user; // Get user email from token
-        const { name, image } = req.body; // Get updated fields from request body
+        const { email } = req.user; 
+        const { name, image } = req.body; 
         const userEmail = await usersCollection.findOne({ email });
 
-        // Update the user document in the database
+        
         const updatedUser = await usersCollection.updateOne(
-          userEmail,
-          { email }, // Find user by email
-          { $set: { name, image } }, // Update fields
-          { returnDocument: "after" } // Return the updated document
+          {email},
+          { $set: { name, image } }, 
+          { returnDocument: "after" }
         );
 
         // Check if the user was found and updated
@@ -221,7 +171,8 @@ async function run() {
           user: updatedUser.value,
         });
       } catch (error) {
-        console.error("Error updating profile:", error);
+        console.err
+         or("Error updating profile:", error);
         res.status(500).send({ message: "Failed to update profile" });
       }
     });
@@ -264,7 +215,7 @@ async function run() {
         }
 
         res.send(users);
-        console.log(users); // Send the data as a JSON array
+        // console.log(users); // Send the data as a JSON array
       } catch (err) {
         console.error("Error fetching users:", err); // Log the error on the server
         res.status(500).send({ message: "Error fetching users" }); // Ensure a JSON response
@@ -272,35 +223,34 @@ async function run() {
     });
 
     //       get users ==============================
-//     app.get("/api/users/role/:email", verifyToken, async (req, res) => {
-//       const email = req.params.email;
-//       console.log("Fetching role for:", email);
+    //     app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+    //       const email = req.params.email;
+    //       console.log("Fetching role for:", email);
 
-//       const result = await usersCollection.findOne({ email });
-//       if (!result) {
-//         return res.status(404).json({ message: "User not found", role: null });
-//       }
+    //       const result = await usersCollection.findOne({ email });
+    //       if (!result) {
+    //         return res.status(404).json({ message: "User not found", role: null });
+    //       }
 
-//       res.send({ role: result?.role });
-//     });
-app.get("/api/users/role", verifyToken, async (req, res) => {
-        // console.log('user role')
-        if (!req.user || !req.user.email) {
-            return res.status(400).send({ error: "Invalid user data" });
-        }
-        const email = req.user.email;
-        // const email = req.body;
-        try {
-            const user = await usersCollection.findOne({ email });
-            res.send({ role: user?.role || "user" });
-        } catch (error) {
-            res.status(500).send({ error: "Server error while fetching role" });
-        }
+    //       res.send({ role: result?.role });
+    //     });
+    app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+      // console.log('user role')
+      if (!req.user) {
+        return res.status(400).send({ error: "Invalid user data" });
+      }
+      const email = req.params?.email;
+//       const {email} = req.user;
+      try {
+        const user = await usersCollection.findOne({ email });
+        res.send({ role: user?.role });
+      } catch (error) {
+        res.status(500).send({ error: "Server error while fetching role" });
+      }
     });
-    
 
     // Update user role to 'admin'
-    app.patch("/api/users/:id", async (req, res) => {
+    app.patch("/api/users/:id", verifyToken,  async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const update = { $set: { role: "admin" } };
@@ -791,7 +741,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
 
     //       request meals==============
 
-    app.post("/api/request-meals/:id",  async (req, res) => {
+    app.post("/api/request-meals/:id", async (req, res) => {
       try {
         const { id } = req.params;
         const { email } = req.body; // Get meal ID and user email
@@ -852,7 +802,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
       }
     });
 
-    app.get("/api/requested-meals/:email",  async (req, res) => {
+    app.get("/api/requested-meals/:email", async (req, res) => {
       try {
         const { email } = req.params;
         const user = await usersCollection.findOne({ email });
@@ -910,7 +860,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
     });
 
     // get upcoming meals and sorted by likes===============
-    app.get("/api/upcoming-meals",  async (req, res) => {
+    app.get("/api/upcoming-meals", async (req, res) => {
       try {
         const meals = await mealsCollection
           .find({ status: "upcoming" })
@@ -939,7 +889,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
     });
 
     // created upcoming-meals============================
-    app.post("/api/upcoming-meals",  async (req, res) => {
+    app.post("/api/upcoming-meals", async (req, res) => {
       try {
         const newMeal = {
           title: req.body.title,
@@ -959,7 +909,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
     });
 
     //     serve meals=======================
-    app.get("/api/requested-meals",  async (req, res) => {
+    app.get("/api/requested-meals", async (req, res) => {
       try {
         const { search } = req.query; // Get search query (email or username)
 
@@ -1098,7 +1048,7 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
           { $set: { badge: payment.badge.toUpperCase() } }
         );
         res.send({
-                paymentResult,
+          paymentResult,
           userResult,
           message: "Payment saved successfully.",
         });
@@ -1108,23 +1058,22 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
       }
     });
 
+    app.get("/dashboard/payment-history", async (req, res) => {
+      const email = req.query?.email;
+      if (!email) {
+        return res.status(400).send({ message: "Email is required" });
+      }
 
-    app.get("/dashboard/payment-history", async (req,res) => {
-        const email = req.query?.email;
-        if (!email) {
-                return res.status(400).send({ message: "Email is required" });
-              }
-
-              try {
-                const payments = await paymentsCollection.find({email}).sort({date: -1}).toArray()
-                res.send({data:payments})
-                
-            } catch (error) {
-                res.status(500).send({message: "failed to fetch payments", error})
-                
-            }
-    })
-    
+      try {
+        const payments = await paymentsCollection
+          .find({ email })
+          .sort({ date: -1 })
+          .toArray();
+        res.send({ data: payments });
+      } catch (error) {
+        res.status(500).send({ message: "failed to fetch payments", error });
+      }
+    });
 
     //     app.post("/api/jwt", async (req, res) => {
     //       //       console.log("request body", req.body);
@@ -1150,18 +1099,18 @@ app.get("/api/users/role", verifyToken, async (req, res) => {
     app.post("/api/jwt", async (req, res) => {
       const { email } = req.body;
 
-      const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET, {
+      const token = jwt.sign({email} , process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
 
       res
-        .cookie("token", token, {
+        .cookie("accessToken", token, {
           httpOnly: true,
           secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
           maxAge: 3600000,
         })
-        .send({ success: true, token, message: "Login successful" });
+        .send({ success: true, token });
     });
 
     app.get("/api/logout", async (req, res) => {
