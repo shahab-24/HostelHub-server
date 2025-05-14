@@ -5,10 +5,13 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+// const {connectDB} = require('./config/db.js')
 const port = process.env.PORT || 7000;
 
 const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
+// const authRoutes = require('./routes/authRoutes')
+// const verifyToken = require('./middlewares/verifyToken')
 
 const corsOptions = {
   origin: [
@@ -32,9 +35,9 @@ app.use(morgan("dev"));
 const verifyToken = async (req, res, next) => {
 //   console.log("Cookies from client:", req.cookies);
   const authHeader = req.headers?.authorization;
-//   const token = req.cookies?.token || authHeader
+//   const token = req.cookies?.token
 const token = authHeader?.split(" ")[1]
-//     console.log("Received Token:", token);
+    console.log("Received Token:", token);
 
   if (!token) {
     return res
@@ -42,11 +45,13 @@ const token = authHeader?.split(" ")[1]
       .send({ message: "unauthorized access, token not found" });
   }
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      console.log("Token Verification Error:", err);
-      return res.status(401).send({ message: "unauthorized access" });
-    }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET ,(err, decoded) => {
+        if (err) {
+          console.error("🔐 JWT Verification failed:", err);
+          return res.status(403).send({ message: "Token verification failed" });
+        } else {
+        //   console.log("✅ JWT verified. Decoded payload:", decoded);
+        }
     req.user = decoded;
     next();
   });
@@ -75,6 +80,9 @@ const client = new MongoClient(uri, {
   },
 });
 
+// connectDB()
+
+
 async function run() {
   try {
     const usersCollection = client.db("HostelHub").collection("users");
@@ -87,6 +95,9 @@ async function run() {
       .db("HostelHub")
       .collection("requestedMeal");
     const paymentsCollection = client.db("HostelHub").collection("payments");
+
+// app.use('/api', authRoutes)
+   
 
     //     get admin profile with added meals count=======
     app.get("/api/admin/profile", verifyToken, async (req, res) => {
@@ -234,13 +245,20 @@ async function run() {
 
     //       res.send({ role: result?.role });
     //     });
-    app.get("/api/users/role/:email", verifyToken, async (req, res) => {
+    app.get("/api/users/role", verifyToken, async (req, res) => {
       // console.log('user role')
       if (!req.user) {
+        console.warn("❌ No decoded user from token!");
         return res.status(400).send({ error: "Invalid user data" });
       }
-      const email = req.params?.email;
-//       const {email} = req.user;
+      console.log("🔐 Decoded user from token:", req.user);
+//       console.log("📨 Email param:", req.params.email);
+      
+//       if (!req.user) {
+//         return res.status(400).send({ error: "Invalid user data" });
+//       }
+//       const email = req.params?.email;
+      const {email} = req.user;
       try {
         const user = await usersCollection.findOne({ email });
         res.send({ role: user?.role });
@@ -741,7 +759,7 @@ async function run() {
 
     //       request meals==============
 
-    app.post("/api/request-meals/:id", async (req, res) => {
+    app.post("/api/request-meals/:id", verifyToken, async (req, res) => {
       try {
         const { id } = req.params;
         const { email } = req.body; // Get meal ID and user email
@@ -802,7 +820,7 @@ async function run() {
       }
     });
 
-    app.get("/api/requested-meals/:email", async (req, res) => {
+    app.get("/api/requested-meals/:email", verifyToken, async (req, res) => {
       try {
         const { email } = req.params;
         const user = await usersCollection.findOne({ email });
@@ -1098,19 +1116,24 @@ async function run() {
 
     app.post("/api/jwt", async (req, res) => {
       const { email } = req.body;
+      const user = await usersCollection.findOne({email})
+      
+      if (!user) {
+        return res.status(404).send({ error: "User not found" });
+      }
 
-      const token = jwt.sign({email} , process.env.ACCESS_TOKEN_SECRET, {
+      const token = jwt.sign({email, role: user.role} , process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
 
-      res
-        .cookie("accessToken", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-          maxAge: 3600000,
-        })
-        .send({ success: true, token });
+      
+        res
+        // .cookie("token", token, {
+        // httpOnly: true,
+        //         secure: process.env.NODE_ENV === 'production', 
+        //         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+        // })
+        .send({ token });
     });
 
     app.get("/api/logout", async (req, res) => {
@@ -1132,7 +1155,7 @@ async function run() {
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
-  res.send("HostelHub is runing....");
+  res.send("HostelHub is running....");
 });
 
 app.listen(port, () => {
