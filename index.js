@@ -5,12 +5,14 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-// const {connectDB} = require('./config/db.js')
+// const { connectDB } = require("./config/db.js");
 const port = process.env.PORT || 7000;
 
 const jwt = require("jsonwebtoken");
 const morgan = require("morgan");
-// const authRoutes = require('./routes/authRoutes')
+// const authRoutes = require("./routes/authRoutes");
+// const adminRoutes = require("./routes/adminRoutes.js");
+// const userRoutes = require("./routes/userRoutes.js");
 // const verifyToken = require('./middlewares/verifyToken')
 
 const corsOptions = {
@@ -33,11 +35,11 @@ app.use(morgan("dev"));
 
 // verifyToken=============================================================
 const verifyToken = async (req, res, next) => {
-//   console.log("Cookies from client:", req.cookies);
+  //   console.log("Cookies from client:", req.cookies);
   const authHeader = req.headers?.authorization;
-//   const token = req.cookies?.token
-const token = authHeader?.split(" ")[1]
-    console.log("Received Token:", token);
+  //   const token = req.cookies?.token
+  const token = authHeader?.split(" ")[1];
+//   console.log("Received Token:", token);
 
   if (!token) {
     return res
@@ -45,18 +47,17 @@ const token = authHeader?.split(" ")[1]
       .send({ message: "unauthorized access, token not found" });
   }
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET ,(err, decoded) => {
-        if (err) {
-          console.error("🔐 JWT Verification failed:", err);
-          return res.status(403).send({ message: "Token verification failed" });
-        } else {
-        //   console.log("✅ JWT verified. Decoded payload:", decoded);
-        }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      console.error("🔐 JWT Verification failed:", err);
+      return res.status(403).send({ message: "Token verification failed" });
+    } else {
+      console.log("✅ JWT verified. Decoded payload:", decoded);
+    }
     req.user = decoded;
     next();
   });
 };
-
 
 // Middleware to verify user subscription
 const verifySubscription = (req, res, next) => {
@@ -80,13 +81,16 @@ const client = new MongoClient(uri, {
   },
 });
 
-// connectDB()
+// connectDB();
 
+// app.use("/api", authRoutes);
+// app.use("/api/admin", adminRoutes);
+// app.use("/api/users", userRoutes);
 
 async function run() {
   try {
     const usersCollection = client.db("HostelHub").collection("users");
-    
+
     const mealsCollection = client.db("HostelHub").collection("meals");
     const reviewsCollection = client.db("HostelHub").collection("reviews");
 
@@ -96,8 +100,7 @@ async function run() {
       .collection("requestedMeal");
     const paymentsCollection = client.db("HostelHub").collection("payments");
 
-// app.use('/api', authRoutes)
-   
+    // app.use('/api', authRoutes)
 
     //     get admin profile with added meals count=======
     app.get("/api/admin/profile", verifyToken, async (req, res) => {
@@ -131,7 +134,7 @@ async function run() {
 
     app.get("/api/user/profile", verifyToken, async (req, res) => {
       try {
-        const  {email}  = req.user;
+        const { email } = req.user;
         const user = await usersCollection.findOne({ email, role: "user" });
 
         if (!user) {
@@ -159,41 +162,12 @@ async function run() {
       }
     });
 
-    app.put("/api/user/profile", verifyToken, async (req, res) => {
-      try {
-        const { email } = req.user; 
-        const { name, image } = req.body; 
-        const userEmail = await usersCollection.findOne({ email });
-
-        
-        const updatedUser = await usersCollection.updateOne(
-          {email},
-          { $set: { name, image } }, 
-          { returnDocument: "after" }
-        );
-
-        // Check if the user was found and updated
-        if (!updatedUser.value) {
-          return res.status(404).send({ message: "User not found" });
-        }
-
-        res.send({
-          message: "Profile updated successfully!",
-          user: updatedUser.value,
-        });
-      } catch (error) {
-        console.err
-         or("Error updating profile:", error);
-        res.status(500).send({ message: "Failed to update profile" });
-      }
-    });
-
     //     user related api===================================
-    app.post("/api/users/:email", async (req, res) => {
-      const email = req.params.email;
-      const query = { email };
-      const user = req.body;
-      const isExist = await usersCollection.findOne(query);
+    app.post("/api/users", async (req, res) => {
+//       const email = req.params.email;
+const {email} = req.body;
+// const query = {email };
+      const isExist = await usersCollection.findOne({email});
 
       if (isExist) {
         return res.send({ message: "User exists" });
@@ -207,7 +181,7 @@ async function run() {
     });
 
     // get all users and search users
-    app.get("/users", async (req, res) => {
+    app.get("/api/users", async (req, res) => {
       const { search } = req.query;
       const query = search
         ? {
@@ -219,17 +193,17 @@ async function run() {
         : {};
       try {
         //
-        const users = await usersCollection.find(query).toArray(); // Ensure the data is an array
+        const users = await usersCollection.find(query).toArray(); 
 
         if (users.length === 0) {
           return res.status(404).send({ message: "No users found" });
         }
 
         res.send(users);
-        // console.log(users); // Send the data as a JSON array
+        
       } catch (err) {
-        console.error("Error fetching users:", err); // Log the error on the server
-        res.status(500).send({ message: "Error fetching users" }); // Ensure a JSON response
+        console.error("Error fetching users:", err);
+        res.status(500).send({ message: "Error fetching users" }); 
       }
     });
 
@@ -246,29 +220,69 @@ async function run() {
     //       res.send({ role: result?.role });
     //     });
     app.get("/api/users/role", verifyToken, async (req, res) => {
-      // console.log('user role')
-      if (!req.user) {
-        console.warn("❌ No decoded user from token!");
-        return res.status(400).send({ error: "Invalid user data" });
-      }
-      console.log("🔐 Decoded user from token:", req.user);
-//       console.log("📨 Email param:", req.params.email);
-      
-//       if (!req.user) {
-//         return res.status(400).send({ error: "Invalid user data" });
-//       }
-//       const email = req.params?.email;
-      const {email} = req.user;
       try {
-        const user = await usersCollection.findOne({ email });
-        res.send({ role: user?.role });
+        const user = req.user;
+        if (!user) {
+                        return res.status(400).send({ error: "Invalid user data" });
+                      }
+        
+        res.send({ role: user.role });
       } catch (error) {
-        res.status(500).send({ error: "Server error while fetching role" });
+        console.error("error fetching role", error);
+        res.send(500).send({ error: "internal server error" });
+      }
+      // console.log('user role')
+      //       if (!req.user) {
+      //         console.warn("❌ No decoded user from token!");
+      //         return res.status(400).send({ error: "Invalid user data" });
+      //       }
+      //       console.log("🔐 Decoded user from token:", req.user);
+      //       console.log("📨 Email param:", req.params.email);
+
+      //       if (!req.user) {
+      //         return res.status(400).send({ error: "Invalid user data" });
+      //       }
+      //       const email = req.params?.email;
+      //       const {email} = req.user;
+      //       try {
+      //         const user = await usersCollection.findOne({ email });
+      //         res.send({ role: user?.role });
+      //       } catch (error) {
+      //         res.status(500).send({ error: "Server error while fetching role" });
+      //       }
+    });
+
+
+    app.put("/api/user/profile", verifyToken, async (req, res) => {
+      try {
+        const { email } = req.user;
+        const { name, image } = req.body;
+        const userEmail = await usersCollection.findOne({ email });
+
+        const updatedUser = await usersCollection.updateOne(
+          { email },
+          { $set: { name, image } },
+          { returnDocument: "after" }
+        );
+
+        // Check if the user was found and updated
+        if (!updatedUser.value) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send({
+          message: "Profile updated successfully!",
+          user: updatedUser.value,
+        });
+      } catch (error) {
+        console.err;
+        or("Error updating profile:", error);
+        res.status(500).send({ message: "Failed to update profile" });
       }
     });
 
     // Update user role to 'admin'
-    app.patch("/api/users/:id", verifyToken,  async (req, res) => {
+    app.patch("/api/users/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const update = { $set: { role: "admin" } };
@@ -285,8 +299,6 @@ async function run() {
         res.status(500).send({ message: "Error updating user role" });
       }
     });
-
-    //
 
     // Get meal by ID
     app.get("/api/meals/:id", async (req, res) => {
@@ -1116,34 +1128,40 @@ async function run() {
 
     app.post("/api/jwt", async (req, res) => {
       const { email } = req.body;
-      const user = await usersCollection.findOne({email})
-      
+      const user = await usersCollection.findOne({ email });
+
       if (!user) {
         return res.status(404).send({ error: "User not found" });
       }
 
-      const token = jwt.sign({email, role: user.role} , process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
-      });
+      const token = jwt.sign(
+        { email, role: user.role },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+          expiresIn: "1h",
+        }
+      );
 
-      
-        res
+      res
         // .cookie("token", token, {
         // httpOnly: true,
-        //         secure: process.env.NODE_ENV === 'production', 
+        //         secure: process.env.NODE_ENV === 'production',
         //         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
         // })
         .send({ token });
     });
 
-    app.get("/api/logout", async (req, res) => {
+    app.post("/api/logout", async (req, res) => {
       try {
         res
-          .clearCookie("token", {
-            maxAge: 0,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-          })
+          .clearCookie(
+            "refreshToken"
+            //   , {
+            //     maxAge: 0,
+            //     secure: process.env.NODE_ENV === "production",
+            //     sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+            //   }
+          )
           .send({ success: true });
       } catch (error) {
         res.status(500).send(error);
